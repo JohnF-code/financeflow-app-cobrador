@@ -2040,10 +2040,13 @@
                         temp_offline: true // Marcar como temporal
                     };
                     
+                    console.log('📋 Agregando cliente al cache visual:', clienteConId);
                     const cachedClientes = await loadFromCache('clientes_cache') || [];
+                    console.log(`📂 Clientes en cache antes: ${cachedClientes.length}`);
                     cachedClientes.push(clienteConId);
+                    console.log(`📂 Clientes en cache después: ${cachedClientes.length}`);
                     await saveToCache('clientes_cache', cachedClientes);
-                    console.log('💾 Cliente agregado al cache local');
+                    console.log('💾 Cliente agregado al cache local - guardado');
                     
                     await updateConnectionStatus();
                     
@@ -2051,6 +2054,7 @@
                     hideCreateClientForm();
                     
                     // 🆕 Recargar lista de clientes (mostrará el nuevo cliente del cache)
+                    console.log('🔄 Recargando lista de clientes...');
                     await loadClients();
                     return;
                 }
@@ -2504,6 +2508,14 @@
 
         // 🆕 Update connection status (usa IndexedDB ahora)
         async function updateConnectionStatus() {
+            // 🆕 Actualizar indicador visual de conexión
+            const statusIndicator = document.getElementById('statusIndicator');
+            if (statusIndicator) {
+                const isOnline = navigator.onLine && APP.isOnline;
+                statusIndicator.className = isOnline ? 'status-indicator status-online' : 'status-indicator status-offline';
+                console.log(`🔌 Estado de conexión actualizado: ${isOnline ? 'Online ✅' : 'Offline 📵'}`);
+            }
+
             // Get pending count from IndexedDB
             const pendingCount = await countOfflinePending();
 
