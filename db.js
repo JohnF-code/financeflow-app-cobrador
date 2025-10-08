@@ -187,25 +187,31 @@ async function saveToCache(storeName, data) {
 
     try {
         const db = DB.instance;
-        const tx = db.transaction([storeName], 'readwrite');
-        const store = tx.objectStore(storeName);
-
-        // Limpiar cache anterior
-        await store.clear();
-
-        // Guardar nuevos datos
         const items = Array.isArray(data) ? data : [data];
         
-        for (const item of items) {
-            // Cifrar si es necesario
-            const encrypted = CRYPTO.isEnabled ? await encryptObject(item) : item;
-            await store.put(encrypted);
-        }
+        return new Promise(async (resolve, reject) => {
+            const tx = db.transaction([storeName], 'readwrite');
+            const store = tx.objectStore(storeName);
+            
+            tx.onerror = () => reject(tx.error);
+            tx.oncomplete = () => {
+                console.log(`💾 Cache guardado: ${storeName} (${items.length} items)`);
+                resolve();
+            };
 
-        await tx.complete;
-        console.log(`💾 Cache guardado: ${storeName} (${items.length} items)`);
+            // Limpiar cache anterior
+            store.clear();
+
+            // Guardar nuevos datos
+            for (const item of items) {
+                // Cifrar si es necesario
+                const encrypted = CRYPTO.isEnabled ? await encryptObject(item) : item;
+                store.put(encrypted);
+            }
+        });
     } catch (error) {
         console.error(`❌ Error guardando cache en ${storeName}:`, error);
+        throw error;
     }
 }
 
@@ -272,6 +278,7 @@ async function saveOffline(storeName, data) {
     }
 
     try {
+        console.log(`📝 Guardando en ${storeName}:`, data);
         const db = DB.instance;
         
         // Agregar metadata
@@ -283,29 +290,56 @@ async function saveOffline(storeName, data) {
             sync_attempts: 0
         };
 
-        // Cifrar datos sensibles
+        console.log(`🔑 temp_id generado: ${offlineData.temp_id}`);
+
+        // Cifrar datos sensibles (si está habilitado)
         const encrypted = CRYPTO.isEnabled ? await encryptObject(offlineData) : offlineData;
 
-        // Guardar en store offline
-        const tx = db.transaction([storeName, 'cola_sync'], 'readwrite');
-        const store = tx.objectStore(storeName);
-        await store.put(encrypted);
+        // Guardar en store offline y cola_sync usando promesas
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction([storeName, 'cola_sync'], 'readwrite');
+            
+            tx.onerror = () => {
+                console.error(`❌ Error en transacción ${storeName}:`, tx.error);
+                reject(tx.error);
+            };
+            
+            tx.oncomplete = () => {
+                console.log(`✅ Transacción completa: ${storeName} - ${offlineData.temp_id}`);
+                resolve(offlineData.temp_id);
+            };
 
-        // Agregar a cola de sincronización
-        const colaStore = tx.objectStore('cola_sync');
-        await colaStore.put({
-            tipo: storeName,
-            temp_id: offlineData.temp_id,
-            timestamp: offlineData.timestamp,
-            intentos: 0,
-            ultimo_intento: null,
-            error: null
+            // Guardar en store offline
+            const store = tx.objectStore(storeName);
+            const putRequest = store.put(encrypted);
+            
+            putRequest.onsuccess = () => {
+                console.log(`✅ Dato guardado en ${storeName}`);
+            };
+            
+            putRequest.onerror = () => {
+                console.error(`❌ Error en put ${storeName}:`, putRequest.error);
+            };
+
+            // Agregar a cola de sincronización
+            const colaStore = tx.objectStore('cola_sync');
+            const colaRequest = colaStore.put({
+                tipo: storeName,
+                temp_id: offlineData.temp_id,
+                timestamp: offlineData.timestamp,
+                intentos: 0,
+                ultimo_intento: null,
+                error: null
+            });
+            
+            colaRequest.onsuccess = () => {
+                console.log(`✅ Item agregado a cola_sync`);
+            };
+            
+            colaRequest.onerror = () => {
+                console.error(`❌ Error en cola_sync:`, colaRequest.error);
+            };
         });
-
-        await tx.complete;
-        console.log(`💾 Guardado offline: ${storeName}`, offlineData.temp_id);
-        
-        return offlineData.temp_id;
     } catch (error) {
         console.error(`❌ Error guardando offline en ${storeName}:`, error);
         throw error;
@@ -371,23 +405,32 @@ async function markAsSynced(storeName, tempId) {
         return markLegacyAsSynced(storeName, tempId);
     }
 
-    try {
-        const db = DB.instance;
-        const tx = db.transaction([storeName], 'readwrite');
-        const store = tx.objectStore(storeName);
-        
-        const item = await store.get(tempId);
-        if (item) {
-            item.synced = true;
-            item.synced_at = Date.now();
-            await store.put(item);
+    return new Promise((resolve, reject) => {
+        try {
+            const db = DB.instance;
+            const tx = db.transaction([storeName], 'readwrite');
+            const store = tx.objectStore(storeName);
+            
+            tx.onerror = () => reject(tx.error);
+            tx.oncomplete = () => {
+                console.log(`✅ Marcado como sincronizado: ${tempId}`);
+                resolve();
+            };
+            
+            const getRequest = store.get(tempId);
+            getRequest.onsuccess = () => {
+                const item = getRequest.result;
+                if (item) {
+                    item.synced = true;
+                    item.synced_at = Date.now();
+                    store.put(item);
+                }
+            };
+        } catch (error) {
+            console.error(`❌ Error marcando como sincronizado ${tempId}:`, error);
+            reject(error);
         }
-
-        await tx.complete;
-        console.log(`✅ Marcado como sincronizado: ${tempId}`);
-    } catch (error) {
-        console.error(`❌ Error marcando como sincronizado ${tempId}:`, error);
-    }
+    });
 }
 
 /**
@@ -399,41 +442,45 @@ async function clearSynced(storeName) {
         return clearLegacySynced(storeName);
     }
 
-    try {
-        const db = DB.instance;
-        const tx = db.transaction([storeName, 'cola_sync'], 'readwrite');
-        const store = tx.objectStore(storeName);
-        const index = store.index('synced');
-        const request = index.getAllKeys(true); // synced = true
+    return new Promise((resolve, reject) => {
+        try {
+            const db = DB.instance;
+            const tx = db.transaction([storeName, 'cola_sync'], 'readwrite');
+            const store = tx.objectStore(storeName);
+            const colaStore = tx.objectStore('cola_sync');
+            
+            tx.onerror = () => reject(tx.error);
+            tx.oncomplete = () => {
+                console.log(`🗑️ Limpieza completada: ${storeName}`);
+                resolve();
+            };
+            
+            const index = store.index('synced');
+            const request = index.getAllKeys(true); // synced = true
 
-        request.onsuccess = async () => {
-            const keys = request.result;
-            for (const key of keys) {
-                await store.delete(key);
-            }
-            console.log(`🗑️ Limpiados ${keys.length} items sincronizados de ${storeName}`);
-        };
-
-        // Limpiar también de cola_sync
-        const colaStore = tx.objectStore('cola_sync');
-        const colaIndex = colaStore.index('tipo');
-        const colaRequest = colaIndex.getAll(storeName);
-        
-        colaRequest.onsuccess = async () => {
-            const items = colaRequest.result;
-            for (const item of items) {
-                // Verificar si el item ya no existe en el store offline
-                const exists = await store.get(item.temp_id);
-                if (!exists) {
-                    await colaStore.delete(item.id);
+            request.onsuccess = () => {
+                const keys = request.result;
+                for (const key of keys) {
+                    store.delete(key);
                 }
-            }
-        };
+                console.log(`🗑️ ${keys.length} items eliminados de ${storeName}`);
+            };
 
-        await tx.complete;
-    } catch (error) {
-        console.error(`❌ Error limpiando sincronizados de ${storeName}:`, error);
-    }
+            // Limpiar también de cola_sync
+            const colaIndex = colaStore.index('tipo');
+            const colaRequest = colaIndex.getAll(storeName);
+            
+            colaRequest.onsuccess = () => {
+                const items = colaRequest.result;
+                for (const item of items) {
+                    colaStore.delete(item.id);
+                }
+            };
+        } catch (error) {
+            console.error(`❌ Error limpiando sincronizados de ${storeName}:`, error);
+            reject(error);
+        }
+    });
 }
 
 /**
