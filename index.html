@@ -1984,6 +1984,19 @@
             submitBtn.textContent = 'Guardando...';
 
             try {
+                // 🆕 Verificar que IndexedDB esté listo
+                console.log('🔍 Verificando IndexedDB...');
+                console.log('  DB.isSupported:', DB.isSupported);
+                console.log('  DB.isReady:', DB.isReady);
+                console.log('  DB.instance:', DB.instance ? 'Existe' : 'NULL');
+                
+                if (!DB.isSupported || !DB.isReady || !DB.instance) {
+                    console.error('❌ IndexedDB no está listo!');
+                    alert('⚠️ Base de datos local no inicializada.\nRecarga la página (F5).');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Guardar Cliente';
+                    return;
+                }
                 const name = document.getElementById('clientName').value.trim();
                 const cedula = document.getElementById('clientCedula').value.trim();
                 const phone = document.getElementById('clientPhone').value.trim();
@@ -2029,34 +2042,48 @@
                 if (!APP.isOnline || !navigator.onLine) {
                     // Save offline using IndexedDB
                     console.log('📵 Offline - guardando cliente en IndexedDB...');
+                    console.log('📝 Datos del cliente:', clientData);
                     
-                    const temp_id = await saveOffline('offline_clientes', clientData);
-                    console.log('✅ Cliente guardado offline:', temp_id);
-                    
-                    // 🆕 Agregar al cache de clientes inmediatamente (para que aparezca en lista)
-                    const clienteConId = {
-                        ...clientData,
-                        id: temp_id, // Usar temp_id como ID temporal
-                        temp_offline: true // Marcar como temporal
-                    };
-                    
-                    console.log('📋 Agregando cliente al cache visual:', clienteConId);
-                    const cachedClientes = await loadFromCache('clientes_cache') || [];
-                    console.log(`📂 Clientes en cache antes: ${cachedClientes.length}`);
-                    cachedClientes.push(clienteConId);
-                    console.log(`📂 Clientes en cache después: ${cachedClientes.length}`);
-                    await saveToCache('clientes_cache', cachedClientes);
-                    console.log('💾 Cliente agregado al cache local - guardado');
-                    
-                    await updateConnectionStatus();
-                    
-                    showSuccess('💾 Cliente guardado offline - se sincronizará cuando haya conexión');
-                    hideCreateClientForm();
-                    
-                    // 🆕 Recargar lista de clientes (mostrará el nuevo cliente del cache)
-                    console.log('🔄 Recargando lista de clientes...');
-                    await loadClients();
-                    return;
+                    try {
+                        const temp_id = await saveOffline('offline_clientes', clientData);
+                        console.log('✅ Cliente guardado offline con temp_id:', temp_id);
+                        
+                        if (!temp_id) {
+                            throw new Error('No se recibió temp_id de saveOffline');
+                        }
+                        
+                        // 🆕 Agregar al cache de clientes inmediatamente (para que aparezca en lista)
+                        const clienteConId = {
+                            ...clientData,
+                            id: temp_id, // Usar temp_id como ID temporal
+                            temp_offline: true // Marcar como temporal
+                        };
+                        
+                        console.log('📋 Agregando cliente al cache visual:', clienteConId);
+                        const cachedClientes = await loadFromCache('clientes_cache') || [];
+                        console.log(`📂 Clientes en cache antes: ${cachedClientes.length}`);
+                        cachedClientes.push(clienteConId);
+                        console.log(`📂 Clientes en cache después: ${cachedClientes.length}`);
+                        
+                        await saveToCache('clientes_cache', cachedClientes);
+                        console.log('💾 Cliente agregado al cache local - guardado');
+                        
+                        await updateConnectionStatus();
+                        
+                        showSuccess('✅ Cliente guardado offline - aparecerá en lista');
+                        alert('✅ Cliente creado offline correctamente.\ntemp_id: ' + temp_id + '\nSe sincronizará al volver online.');
+                        hideCreateClientForm();
+                        
+                        // 🆕 Recargar lista de clientes (mostrará el nuevo cliente del cache)
+                        console.log('🔄 Recargando lista de clientes...');
+                        await loadClients();
+                        return;
+                    } catch (offlineError) {
+                        console.error('❌ ERROR CRÍTICO guardando offline:', offlineError);
+                        console.error('❌ Stack trace:', offlineError.stack);
+                        alert('❌ ERROR: ' + offlineError.message + '\n\nRevisa la consola (F12) para más detalles.');
+                        throw offlineError;
+                    }
                 }
 
                 const { data, error } = await APP.supabase
