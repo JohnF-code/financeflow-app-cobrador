@@ -341,6 +341,16 @@ async function registerPaymentForLoan(loanId, clientId, amount) {
 
         // 🆕 Check if online
         if (!APP.isOnline || !navigator.onLine) {
+            // 🆕 Debug crítico
+            console.log('==========================================');
+            console.log('💳 PAGO OFFLINE DETECTADO');
+            console.log('📊 Estado de conexión:');
+            console.log('  navigator.onLine:', navigator.onLine);
+            console.log('  APP.isOnline:', APP.isOnline);
+            console.log('  DB.isSupported:', DB.isSupported);
+            console.log('  DB.isReady:', DB.isReady);
+            console.log('  DB.instance:', DB.instance ? 'Existe' : 'NULL');
+            
             // 🆕 Validar monto vs saldo del cache
             console.log('📵 Offline - validando pago con datos del cache...');
             const cachedLoans = await loadFromCache('prestamos_detalle_cache');
