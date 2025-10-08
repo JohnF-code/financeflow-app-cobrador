@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cobrador App - v3.0 (IndexedDB)</title>
-    <!-- Cache Buster: v3.0 - Deploy: 2025-10-07 -->
+    <!-- Cache Buster: v3.0 -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
@@ -1305,6 +1305,46 @@
             }
         }
 
+        // 🆕 Render cuotas from cache (offline mode)
+        function renderPendingQuotasFromCache(cachedData) {
+            const container = document.getElementById('pendingQuotasList');
+            if (!container || !cachedData || cachedData.length === 0) {
+                container.innerHTML = '<div class="empty-state"><h3>Sin datos</h3><p>No hay cuotas en cache</p></div>';
+                return;
+            }
+            
+            // Group by loan and render
+            const loanGroups = {};
+            cachedData.forEach(cuota => {
+                if (!loanGroups[cuota.prestamo_id]) {
+                    loanGroups[cuota.prestamo_id] = [];
+                }
+                loanGroups[cuota.prestamo_id].push(cuota);
+            });
+            
+            let html = '<div style="background: rgba(255, 193, 7, 0.1); padding: 10px; border-radius: 8px; margin-bottom: 15px;"><strong>📵 Modo Offline</strong> - Datos del cache (pueden no estar actualizados)</div>';
+            
+            Object.keys(loanGroups).forEach(loanId => {
+                const cuotas = loanGroups[loanId];
+                const firstCuota = cuotas[0];
+                
+                html += `
+                    <div class="quota-card">
+                        <div class="quota-header">
+                            <h3>${firstCuota.cliente_nombre || 'Cliente'}</h3>
+                            <span class="badge badge-warning">Offline</span>
+                        </div>
+                        <div class="quota-body">
+                            <p><strong>Préstamo:</strong> ${loanId}</p>
+                            <p><strong>Total cuotas:</strong> ${cuotas.length}</p>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
         // Load pending loans with details (similar to main panel)
         async function loadPendingQuotas() {
             console.log('🚀 INICIANDO loadPendingQuotas()');
@@ -1322,11 +1362,19 @@
                     updateConnectionStatus();
                 }
 
-                // If offline, show message
+                // 🆕 If offline, try to load from cache
                 if (!APP.isOnline || !navigator.onLine) {
-                    console.log('📵 Offline mode - cannot load pending quotas');
-                    container.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>Conecta a internet para ver las cuotas pendientes</p></div>';
-                    return;
+                    console.log('📵 Offline mode - loading from cache...');
+                    const cachedCuotas = await loadFromCache('cuotas_cache');
+                    
+                    if (cachedCuotas && cachedCuotas.length > 0) {
+                        console.log(`📂 Loaded ${cachedCuotas.length} cuotas from cache`);
+                        renderPendingQuotasFromCache(cachedCuotas);
+                        return;
+                    } else {
+                        container.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>No hay datos en cache. Conecta a internet para cargar las cuotas</p></div>';
+                        return;
+                    }
                 }
 
                 const today = getLocalToday();
@@ -1422,6 +1470,10 @@
                 
                 // Render with pagination
                 renderPendientes(loansWithDetails);
+                
+                // 🆕 Save to cache for offline use
+                await saveToCache('cuotas_cache', loansWithDetails);
+                console.log('💾 Cuotas guardadas en cache');
             } catch (error) {
                 console.error('Error loading pending loans:', error);
                 console.error('Context:', APP.ctx);
@@ -1443,11 +1495,23 @@
                     updateConnectionStatus();
                 }
 
-                // If offline, show message
+                // 🆕 If offline, load from cache
                 if (!APP.isOnline || !navigator.onLine) {
-                    console.log('📵 Offline mode - showing limited clients data');
-                    container.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>Conecta a internet para ver la lista completa de clientes</p></div>';
-                    return;
+                    console.log('📵 Offline mode - loading clients from cache...');
+                    const cachedClients = await loadFromCache('clientes_cache');
+                    
+                    if (cachedClients && cachedClients.length > 0) {
+                        console.log(`📂 Loaded ${cachedClients.length} clients from cache`);
+                        PAGINATION_STATE.clientes.allData = cachedClients;
+                        PAGINATION_STATE.clientes.filteredData = cachedClients;
+                        PAGINATION_STATE.clientes.currentPage = 1;
+                        setupSearchListener('clientes', ['nombre', 'cedula', 'telefono'], renderClientes);
+                        renderClientes(cachedClients);
+                        return;
+                    } else {
+                        container.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>No hay clientes en cache</p></div>';
+                        return;
+                    }
                 }
 
                 // Get ALL clients from the panel (like main app)
@@ -1474,6 +1538,10 @@
                 
                 // Render with pagination
                 renderClientes(data);
+                
+                // 🆕 Save to cache for offline use
+                await saveToCache('clientes_cache', data);
+                console.log('💾 Clientes guardados en cache');
             } catch (error) {
                 console.error('Error loading clients:', error);
                 console.error('Context:', APP.ctx);
@@ -1495,11 +1563,23 @@
                     updateConnectionStatus();
                 }
 
-                // If offline, show message
+                // 🆕 If offline, load from cache
                 if (!APP.isOnline || !navigator.onLine) {
-                    console.log('📵 Offline mode - cannot load credits');
-                    container.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>Conecta a internet para ver los créditos</p></div>';
-                    return;
+                    console.log('📵 Offline mode - loading credits from cache...');
+                    const cachedCredits = await loadFromCache('creditos_cache');
+                    
+                    if (cachedCredits && cachedCredits.length > 0) {
+                        console.log(`📂 Loaded ${cachedCredits.length} credits from cache`);
+                        PAGINATION_STATE.creditos.allData = cachedCredits;
+                        PAGINATION_STATE.creditos.filteredData = cachedCredits;
+                        PAGINATION_STATE.creditos.currentPage = 1;
+                        setupSearchListener('creditos', ['clients.nombre', 'clients.cedula'], renderCreditos);
+                        renderCreditos(cachedCredits);
+                        return;
+                    } else {
+                        container.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>No hay créditos en cache</p></div>';
+                        return;
+                    }
                 }
 
                 const { data, error } = await APP.supabase
@@ -1541,6 +1621,10 @@
                 
                 // Render with pagination
                 renderCreditos(data);
+                
+                // 🆕 Save to cache for offline use
+                await saveToCache('creditos_cache', data);
+                console.log('💾 Créditos guardados en cache');
             } catch (error) {
                 console.error('Error loading credits:', error);
                 console.error('Context:', APP.ctx);
@@ -1562,11 +1646,23 @@
                     updateConnectionStatus();
                 }
 
-                // If offline, show message
+                // 🆕 If offline, load from cache
                 if (!APP.isOnline || !navigator.onLine) {
-                    console.log('📵 Offline mode - cannot load payments');
-                    container.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>Conecta a internet para ver los pagos</p></div>';
-                    return;
+                    console.log('📵 Offline mode - loading payments from cache...');
+                    const cachedPayments = await loadFromCache('pagos_cache');
+                    
+                    if (cachedPayments && cachedPayments.length > 0) {
+                        console.log(`📂 Loaded ${cachedPayments.length} payments from cache`);
+                        PAGINATION_STATE.pagos.allData = cachedPayments;
+                        PAGINATION_STATE.pagos.filteredData = cachedPayments;
+                        PAGINATION_STATE.pagos.currentPage = 1;
+                        setupSearchListener('pagos', ['clients.nombre', 'clients.cedula'], renderPagos);
+                        renderPagos(cachedPayments);
+                        return;
+                    } else {
+                        container.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>No hay pagos en cache</p></div>';
+                        return;
+                    }
                 }
 
                 const { data, error } = await APP.supabase
@@ -1611,6 +1707,10 @@
 
                 // Update dashboard stats
                 updateDashboardStatsWithPayments(data);
+                
+                // 🆕 Save to cache for offline use
+                await saveToCache('pagos_cache', data);
+                console.log('💾 Pagos guardados en cache');
             } catch (error) {
                 console.error('Error loading payments:', error);
                 console.error('Context:', APP.ctx);
