@@ -16,6 +16,19 @@ const DB = {
     isSupported: true
 };
 
+// Función helper para generar UUID (fallback si crypto.randomUUID no está disponible)
+function generateUUID() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    // Fallback UUID v4
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
 /**
  * Inicializar IndexedDB
  * Crea todos los stores necesarios
@@ -153,6 +166,7 @@ async function initDB() {
             DB.instance = event.target.result;
             DB.isReady = true;
             console.log('✅ IndexedDB conectado:', DB_NAME);
+            console.log('📋 Stores disponibles:', Array.from(DB.instance.objectStoreNames));
             resolve(DB.instance);
         };
 
@@ -284,7 +298,7 @@ async function saveOffline(storeName, data) {
         // Agregar metadata
         const offlineData = {
             ...data,
-            temp_id: data.temp_id || `offline_${storeName}_${Date.now()}_${crypto.randomUUID()}`,
+            temp_id: data.temp_id || `offline_${storeName}_${Date.now()}_${generateUUID()}`,
             timestamp: data.timestamp || Date.now(),
             synced: false,
             sync_attempts: 0
@@ -297,48 +311,63 @@ async function saveOffline(storeName, data) {
 
         // Guardar en store offline y cola_sync usando promesas
         return new Promise((resolve, reject) => {
-            const tx = db.transaction([storeName, 'cola_sync'], 'readwrite');
-            
-            tx.onerror = () => {
-                console.error(`❌ Error en transacción ${storeName}:`, tx.error);
-                reject(tx.error);
-            };
-            
-            tx.oncomplete = () => {
-                console.log(`✅ Transacción completa: ${storeName} - ${offlineData.temp_id}`);
-                resolve(offlineData.temp_id);
-            };
+            try {
+                const tx = db.transaction([storeName, 'cola_sync'], 'readwrite');
+                
+                tx.onerror = (event) => {
+                    console.error(`❌ Error en transacción ${storeName}:`, event.target.error);
+                    console.error('❌ Detalles completos:', event);
+                    reject(event.target.error);
+                };
+                
+                tx.oncomplete = () => {
+                    console.log(`✅ Transacción completa: ${storeName} - ${offlineData.temp_id}`);
+                    resolve(offlineData.temp_id);
+                };
 
-            // Guardar en store offline
-            const store = tx.objectStore(storeName);
-            const putRequest = store.put(encrypted);
-            
-            putRequest.onsuccess = () => {
-                console.log(`✅ Dato guardado en ${storeName}`);
-            };
-            
-            putRequest.onerror = () => {
-                console.error(`❌ Error en put ${storeName}:`, putRequest.error);
-            };
+                tx.onabort = (event) => {
+                    console.error(`❌ Transacción abortada ${storeName}:`, event.target.error);
+                    reject(new Error('Transaction aborted'));
+                };
 
-            // Agregar a cola de sincronización
-            const colaStore = tx.objectStore('cola_sync');
-            const colaRequest = colaStore.put({
-                tipo: storeName,
-                temp_id: offlineData.temp_id,
-                timestamp: offlineData.timestamp,
-                intentos: 0,
-                ultimo_intento: null,
-                error: null
-            });
-            
-            colaRequest.onsuccess = () => {
-                console.log(`✅ Item agregado a cola_sync`);
-            };
-            
-            colaRequest.onerror = () => {
-                console.error(`❌ Error en cola_sync:`, colaRequest.error);
-            };
+                // Guardar en store offline
+                const store = tx.objectStore(storeName);
+                const putRequest = store.put(encrypted);
+                
+                putRequest.onsuccess = () => {
+                    console.log(`✅ Dato guardado en ${storeName}`);
+                };
+                
+                putRequest.onerror = (event) => {
+                    console.error(`❌ Error en put ${storeName}:`, event.target.error);
+                    console.error('❌ Datos que intentó guardar:', encrypted);
+                };
+
+                // Agregar a cola de sincronización
+                const colaStore = tx.objectStore('cola_sync');
+                const colaData = {
+                    tipo: storeName,
+                    temp_id: offlineData.temp_id,
+                    timestamp: offlineData.timestamp,
+                    intentos: 0,
+                    ultimo_intento: null,
+                    error: null
+                };
+                console.log(`📋 Agregando a cola_sync:`, colaData);
+                const colaRequest = colaStore.put(colaData);
+                
+                colaRequest.onsuccess = () => {
+                    console.log(`✅ Item agregado a cola_sync`);
+                };
+                
+                colaRequest.onerror = (event) => {
+                    console.error(`❌ Error en cola_sync:`, event.target.error);
+                    console.error('❌ Datos de cola:', colaData);
+                };
+            } catch (err) {
+                console.error(`❌ Excepción en saveOffline:`, err);
+                reject(err);
+            }
         });
     } catch (error) {
         console.error(`❌ Error guardando offline en ${storeName}:`, error);
