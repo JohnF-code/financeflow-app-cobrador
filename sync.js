@@ -198,7 +198,7 @@ async function syncClientes(clientes) {
         try {
             // Preparar datos para Supabase
             const clientData = {
-                panel_id: APP.ctx.panelId,
+                panel_id: APP.collectorContext.panelId,
                 nombre: cliente.nombre,
                 telefono: cliente.telefono,
                 cedula: cliente.cedula,
@@ -254,9 +254,9 @@ async function syncCreditos(creditos) {
 
             // Preparar datos para Supabase
             const creditData = {
-                panel_id: APP.ctx.panelId,
+                panel_id: APP.collectorContext.panelId,
                 cliente_id: clienteId,
-                cobrador_id: APP.ctx.collectorId,
+                cobrador_id: APP.collectorContext.collectorId,
                 monto_prestado: credito.monto_prestado,
                 cuota_diaria: credito.cuota_diaria,
                 total_dias: credito.total_dias,
@@ -314,10 +314,10 @@ async function syncPagos(pagos) {
 
             // Preparar datos para Supabase
             const pagoData = {
-                panel_id: APP.ctx.panelId,
+                panel_id: APP.collectorContext.panelId,
                 cliente_id: pago.cliente_id,
                 prestamo_id: pago.prestamo_id,
-                cobrador_id: APP.ctx.collectorId,
+                cobrador_id: APP.collectorContext.collectorId,
                 monto: pago.monto,
                 fecha_pago: pago.fecha_pago,
                 hora_pago: pago.hora_pago,
@@ -383,8 +383,8 @@ async function syncRecogidas(recogidas) {
                 p_monto_pago: recogida.monto_pago,
                 p_fecha_pago: recogida.fecha_pago,
                 p_hora_pago: recogida.hora_pago,
-                p_cobrador_id: APP.ctx.collectorId,
-                p_panel_id: APP.ctx.panelId,
+                p_cobrador_id: APP.collectorContext.collectorId,
+                p_panel_id: APP.collectorContext.panelId,
                 p_lat: recogida.lat || null,
                 p_lng: recogida.lng || null
             });
@@ -396,9 +396,9 @@ async function syncRecogidas(recogidas) {
                 const { error: creditError } = await APP.supabase
                     .from('prestamos')
                     .insert({
-                        panel_id: APP.ctx.panelId,
+                        panel_id: APP.collectorContext.panelId,
                         cliente_id: recogida.cliente_id,
-                        cobrador_id: APP.ctx.collectorId,
+                        cobrador_id: APP.collectorContext.collectorId,
                         monto_prestado: recogida.nuevo_credito.monto_prestado,
                         cuota_diaria: recogida.nuevo_credito.cuota_diaria,
                         total_dias: recogida.nuevo_credito.total_dias,
@@ -443,7 +443,7 @@ async function updateCacheFromSupabase() {
         const { data: clientes } = await APP.supabase
             .from('clients')
             .select('id, nombre, telefono, email, cedula')
-            .eq('panel_id', APP.ctx.panelId)
+            .eq('panel_id', APP.collectorContext.panelId)
             .order('nombre');
 
         if (clientes) {
@@ -458,8 +458,8 @@ async function updateCacheFromSupabase() {
                 monto_pagado, saldo_pendiente,
                 clients:cliente_id(nombre, telefono, cedula)
             `)
-            .eq('panel_id', APP.ctx.panelId)
-            .eq('cobrador_id', APP.ctx.collectorId)
+            .eq('panel_id', APP.collectorContext.panelId)
+            .eq('cobrador_id', APP.collectorContext.collectorId)
             .eq('estado', 'activo')
             .order('fecha_inicio', { ascending: false });
 
@@ -471,7 +471,7 @@ async function updateCacheFromSupabase() {
         const { data: cuotas } = await APP.supabase
             .from('v_cuotas_cobrador_local')
             .select('*')
-            .eq('cobrador_id', APP.ctx.collectorId);
+            .eq('cobrador_id', APP.collectorContext.collectorId);
 
         if (cuotas) {
             await saveToCache('cuotas_cache', cuotas);
@@ -481,13 +481,13 @@ async function updateCacheFromSupabase() {
         const { data: settings } = await APP.supabase
             .from('settings')
             .select('*')
-            .eq('panel_id', APP.ctx.panelId)
+            .eq('panel_id', APP.collectorContext.panelId)
             .single();
 
         if (settings) {
             await saveToCache('panel_settings_cache', [{
                 ...settings,
-                panel_id: APP.ctx.panelId,
+                panel_id: APP.collectorContext.panelId,
                 ultima_actualizacion: Date.now()
             }]);
         }

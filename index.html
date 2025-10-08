@@ -1176,7 +1176,7 @@
                     APP.timezone = 'America/Bogota';
                 }
 
-                APP.ctx = {
+                APP.collectorContext = {
                     panelId: collector.panel_id,
                     collectorId: collector.id,
                     userId: user.id,
@@ -1190,7 +1190,7 @@
                     headerTitle.innerHTML = `Hola, ${collectorName} <span class="status-indicator status-online" id="statusIndicator"></span>`;
                 }
 
-                console.log('✅ Collector context loaded:', APP.ctx);
+                console.log('✅ Collector context loaded:', APP.collectorContext);
                 
                 // 🆕 Cache settings del panel para cálculos offline
                 await cacheSettings();
@@ -1743,7 +1743,7 @@
                 console.log(`✅ ${loans.length} préstamos cacheados completos`);
             } catch (error) {
                 console.error('Error loading pending loans:', error);
-                console.error('Context:', APP.ctx);
+                console.error('Context:', APP.collectorContext);
                 container.innerHTML = `<div class="error">Error al cargar los préstamos: ${error.message || 'Error desconocido'}</div>`;
             }
         }
@@ -1811,7 +1811,7 @@
                 console.log('💾 Clientes guardados en cache');
             } catch (error) {
                 console.error('Error loading clients:', error);
-                console.error('Context:', APP.ctx);
+                console.error('Context:', APP.collectorContext);
                 container.innerHTML = `<div class="error">Error al cargar los clientes: ${error.message || 'Error desconocido'}</div>`;
             }
         }
@@ -1894,7 +1894,7 @@
                 console.log('💾 Créditos guardados en cache');
             } catch (error) {
                 console.error('Error loading credits:', error);
-                console.error('Context:', APP.ctx);
+                console.error('Context:', APP.collectorContext);
                 container.innerHTML = `<div class="error">Error al cargar los créditos: ${error.message || 'Error desconocido'}</div>`;
             }
         }
@@ -1980,7 +1980,7 @@
                 console.log('💾 Pagos guardados en cache');
             } catch (error) {
                 console.error('Error loading payments:', error);
-                console.error('Context:', APP.ctx);
+                console.error('Context:', APP.collectorContext);
                 container.innerHTML = `<div class="error">Error al cargar los pagos: ${error.message || 'Error desconocido'}</div>`;
             }
         }
@@ -2086,7 +2086,7 @@
                         hora_pago: new Date().toTimeString().split(' ')[0],
                         estado: 'registrado',
                         idempotency_key: idempotencyKey,
-                        created_by: APP.ctx.userId
+                        created_by: APP.collectorContext.userId
                     });
 
                 if (error) throw error;
@@ -2823,7 +2823,7 @@
                 }
                 console.log('Logout successful, reloading...');
                 // Clear app context
-                APP.ctx = null;
+                APP.collectorContext = null;
                 // Reload page
                 window.location.href = window.location.pathname;
             } catch (error) {
