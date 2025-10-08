@@ -28,21 +28,30 @@ async function showRegisterPaymentForm(loanId) {
             const cachedLoan = cachedLoans?.find(l => l.id === loanId);
             
             if (!cachedLoan) {
-                console.error(`❌ No se encontró préstamo ${loanId} en cache`);
+                console.warn(`⚠️ Préstamo ${loanId} no está en cache - modo emergencia`);
                 console.log('📋 Préstamos en cache:', cachedLoans?.map(l => ({ id: l.id, cliente: l.clients?.nombre })));
-                showError('⚠️ Para registrar pagos offline:\n1. Conecta a internet\n2. Entra a "Cuotas Hoy" y espera que cargue\n3. Ahora podrás registrar pagos offline');
-                return;
+                
+                // 🆕 MODO EMERGENCIA: Permitir registro sin cache
+                loan = {
+                    id: loanId,
+                    cliente_id: null, // Se inferirá del préstamo
+                    cuota_diaria: 0,
+                    clients: { nombre: 'Cliente (datos limitados)' }
+                };
+                totalPending = 0; // Usuario ingresará manualmente
+                
+                console.log('🚨 Usando modo emergencia sin cache');
+            } else {
+                loan = {
+                    id: cachedLoan.id,
+                    cliente_id: cachedLoan.cliente_id,
+                    cuota_diaria: cachedLoan.cuota_diaria,
+                    clients: cachedLoan.clients
+                };
+                totalPending = cachedLoan.saldo_total_pendiente;
+                
+                console.log(`📂 Préstamo cargado del cache - Saldo: $${totalPending}`);
             }
-            
-            loan = {
-                id: cachedLoan.id,
-                cliente_id: cachedLoan.cliente_id,
-                cuota_diaria: cachedLoan.cuota_diaria,
-                clients: cachedLoan.clients
-            };
-            totalPending = cachedLoan.saldo_total_pendiente;
-            
-            console.log(`📂 Préstamo cargado del cache - Saldo: $${totalPending}`);
         }
         
         // 🆕 Agregar indicador de modo offline
