@@ -308,6 +308,15 @@ async function registerPaymentForLoan(loanId, clientId, amount) {
     btn.textContent = 'Registrando...';
     
     try {
+        // 🆕 PRIMERO verificar estado de conexión ANTES de hacer cualquier cosa
+        const isOffline = !navigator.onLine;
+        
+        // Actualizar APP.isOnline si es necesario
+        if (isOffline && APP.isOnline) {
+            APP.isOnline = false;
+            updateConnectionStatus();
+        }
+        
         // Generate idempotency key to prevent duplicates
         const timestamp = Date.now();
         const idempotencyKey = `${APP.collectorContext.collectorId}-${loanId}-${timestamp}`;
@@ -339,8 +348,8 @@ async function registerPaymentForLoan(loanId, clientId, amount) {
             paymentData.lng = location.longitude;
         }
 
-        // 🆕 Check if online
-        if (!APP.isOnline || !navigator.onLine) {
+        // 🆕 Check if offline
+        if (isOffline) {
             // 🆕 Debug crítico
             console.log('==========================================');
             console.log('💳 PAGO OFFLINE DETECTADO');

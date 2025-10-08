@@ -2264,10 +2264,7 @@
                         
                         // 🆕 Cambiar a vista de clientes y recargar
                         console.log('🔄 Cambiando a vista de clientes...');
-                        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-                        document.getElementById('clientsView').classList.add('active');
-                        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-                        document.querySelector('[onclick="showView(\'clientsView\')"]').classList.add('active');
+                        showView('clientes');
                         
                         await loadClients();
                         
