@@ -81,16 +81,16 @@
             width: 100%;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 12px 20px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.25);
             z-index: 10000;
             display: none;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 4px;
             text-align: center;
-            min-height: 60px;
+            min-height: 100px;
         }
         .offline-banner.show {
             display: flex;
@@ -376,9 +376,9 @@
 
     <!-- 🆕 Banner de Estado Offline -->
     <div id="offlineBanner" class="offline-banner">
-        <div style="font-size: 24px; margin-bottom: 4px;">📦</div>
-        <div style="font-weight: 600; font-size: 14px;">Preparando modo offline...</div>
-        <div style="font-size: 12px; opacity: 0.9;">Descargando datos para trabajar sin conexión</div>
+        <div style="font-size: 32px; margin-bottom: 8px;">📦</div>
+        <div style="font-weight: 700; font-size: 18px; line-height: 1.3;">Preparando modo offline...</div>
+        <div style="font-size: 14px; opacity: 0.95; line-height: 1.4;">Descargando datos para trabajar sin conexión</div>
     </div>
 
     <div class="container">
@@ -994,9 +994,9 @@
             if (!banner) return;
             
             banner.innerHTML = `
-                <div style="font-size: 24px; margin-bottom: 4px;">${icon}</div>
-                <div style="font-weight: 600; font-size: 14px;">${title}</div>
-                <div style="font-size: 12px; opacity: 0.9;">${subtitle}</div>
+                <div style="font-size: 32px; margin-bottom: 8px;">${icon}</div>
+                <div style="font-weight: 700; font-size: 18px; line-height: 1.3;">${title}</div>
+                <div style="font-size: 14px; opacity: 0.95; line-height: 1.4;">${subtitle}</div>
             `;
         }
 
@@ -2257,8 +2257,10 @@
                     } catch (offlineError) {
                         console.error('❌ ERROR CRÍTICO guardando offline:', offlineError);
                         console.error('❌ Stack trace:', offlineError.stack);
-                        alert('❌ ERROR: ' + offlineError.message + '\n\nRevisa la consola (F12) para más detalles.');
-                        throw offlineError;
+                        showError('❌ ERROR: ' + offlineError.message + '\n\nRevisa la consola (F12) para más detalles.');
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Guardar Cliente';
+                        return; // NO hacer throw para evitar doble mensaje
                     }
                 }
 
