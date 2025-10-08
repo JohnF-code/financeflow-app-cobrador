@@ -477,15 +477,31 @@ async function updateCacheFromSupabase() {
             await saveToCache('cuotas_cache', cuotas);
         }
 
-        // Actualizar cache de settings
+        // Actualizar cache de settings del panel
         const { data: settings } = await APP.supabase
-            .from('panel_settings')
+            .from('settings')
             .select('*')
             .eq('panel_id', APP.ctx.panelId)
             .single();
 
         if (settings) {
-            await saveToCache('settings_cache', { key: 'panel_settings', ...settings });
+            await saveToCache('panel_settings_cache', [{
+                ...settings,
+                panel_id: APP.ctx.panelId,
+                ultima_actualizacion: Date.now()
+            }]);
+        }
+
+        // 🆕 Actualizar cache de préstamos detallados (para pagos/recogidas offline)
+        // Solo si hay préstamos activos
+        if (creditos && creditos.length > 0) {
+            console.log('🔄 Actualizando cache de préstamos detallados...');
+            // Usar la función cachePrestamoCompleto si está disponible
+            if (typeof cachePrestamoCompleto === 'function') {
+                for (const credito of creditos) {
+                    await cachePrestamoCompleto(credito.id);
+                }
+            }
         }
 
         console.log('✅ Cache actualizado correctamente');

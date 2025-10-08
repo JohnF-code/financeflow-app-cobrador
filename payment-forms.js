@@ -28,7 +28,9 @@ async function showRegisterPaymentForm(loanId) {
             const cachedLoan = cachedLoans?.find(l => l.id === loanId);
             
             if (!cachedLoan) {
-                showError('⚠️ No hay datos de este préstamo en cache. Conecta a internet y recarga los datos primero.');
+                console.error(`❌ No se encontró préstamo ${loanId} en cache`);
+                console.log('📋 Préstamos en cache:', cachedLoans?.map(l => ({ id: l.id, cliente: l.clients?.nombre })));
+                showError('⚠️ Para registrar pagos offline:\n1. Conecta a internet\n2. Entra a "Cuotas Hoy" y espera que cargue\n3. Ahora podrás registrar pagos offline');
                 return;
             }
             

@@ -2033,11 +2033,25 @@
                     const temp_id = await saveOffline('offline_clientes', clientData);
                     console.log('✅ Cliente guardado offline:', temp_id);
                     
+                    // 🆕 Agregar al cache de clientes inmediatamente (para que aparezca en lista)
+                    const clienteConId = {
+                        ...clientData,
+                        id: temp_id, // Usar temp_id como ID temporal
+                        temp_offline: true // Marcar como temporal
+                    };
+                    
+                    const cachedClientes = await loadFromCache('clientes_cache') || [];
+                    cachedClientes.push(clienteConId);
+                    await saveToCache('clientes_cache', cachedClientes);
+                    console.log('💾 Cliente agregado al cache local');
+                    
                     await updateConnectionStatus();
                     
                     showSuccess('💾 Cliente guardado offline - se sincronizará cuando haya conexión');
                     hideCreateClientForm();
-                    // Don't reload clients list (offline mode)
+                    
+                    // 🆕 Recargar lista de clientes (mostrará el nuevo cliente del cache)
+                    await loadClients();
                     return;
                 }
 
