@@ -392,20 +392,35 @@ async function registerPaymentForLoan(loanId, clientId, amount) {
             
             // Save offline using IndexedDB
             console.log('📵 Guardando pago offline en IndexedDB...');
+            console.log('📝 Datos del pago:', paymentData);
             
-            const temp_id = await saveOffline('offline_pagos', paymentData);
-            console.log('✅ Pago guardado offline:', temp_id);
-            
-            await updateConnectionStatus();
-            
-            showSuccess('💾 Pago guardado offline - se sincronizará cuando haya conexión');
-            closePaymentModal();
-            
-            // Recargar vista (mostrará cache actualizado)
-            if (typeof loadPendingQuotas === 'function') {
-                loadPendingQuotas();
+            try {
+                const temp_id = await saveOffline('offline_pagos', paymentData);
+                console.log('✅ Pago guardado offline con temp_id:', temp_id);
+                
+                if (!temp_id) {
+                    throw new Error('No se recibió temp_id de saveOffline');
+                }
+                
+                await updateConnectionStatus();
+                
+                showSuccess('💾 Pago guardado offline - se sincronizará cuando haya conexión');
+                alert('✅ Pago guardado offline\ntemp_id: ' + temp_id + '\n\nSe sincronizará al volver online');
+                closePaymentModal();
+                
+                // Recargar vista (mostrará cache actualizado)
+                if (typeof loadPendingQuotas === 'function') {
+                    loadPendingQuotas();
+                }
+                return;
+            } catch (saveError) {
+                console.error('❌ ERROR guardando pago offline:', saveError);
+                console.error('❌ Stack:', saveError.stack);
+                showError('❌ Error: ' + saveError.message);
+                btn.disabled = false;
+                btn.textContent = 'Registrar';
+                return;
             }
-            return;
         }
 
         const { error } = await APP.supabase.from('pagos').insert(paymentData);
