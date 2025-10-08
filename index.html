@@ -1,0 +1,2521 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cobrador App - v3.0 (IndexedDB)</title>
+    <!-- Cache Buster: v3.0 -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="stylesheet" href="styles-new.css">
+    
+    <!-- 🆕 Módulos de almacenamiento robusto -->
+    <script src="db.js"></script>
+    <script src="crypto.js"></script>
+    <script src="sync.js"></script>
+    <style display="none">
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        /* ============ LIGHT/DARK MODE ============ */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+        
+        /* LIGHT MODE (Default) */
+        body.light-mode {
+            background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
+            color: #1a202c;
+        }
+        
+        /* DARK MODE */
+        body.dark-mode {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+        }
+        
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+            color: white;
+        }
+        
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-online { background: #4ade80; }
+        .status-offline { background: #f87171; }
+        
+        .nav {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .nav-btn {
+            flex: 1;
+            min-width: 120px;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: #333;
+        }
+        
+        .nav-btn:hover {
+            background: rgba(255, 255, 255, 1);
+            transform: translateY(-2px);
+        }
+        
+        .nav-btn.active {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .content {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .view {
+            display: none;
+        }
+        
+        .view.active {
+            display: block;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        
+        .stat-card h3 {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #3b82f6;
+        }
+        
+        .stat-card .value.success { color: #10b981; }
+        .stat-card .value.warning { color: #f59e0b; }
+        
+        .list-container {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .list-header {
+            background: #f8fafc;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e2e8f0;
+            font-weight: 600;
+            color: #374151;
+        }
+        
+        .list-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s ease;
+        }
+        
+        .list-item:hover {
+            background: #f8fafc;
+        }
+        
+        .list-item:last-child {
+            border-bottom: none;
+        }
+        
+        .item-info {
+            flex: 1;
+        }
+        
+        .item-name {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 4px;
+        }
+        
+        .item-details {
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+        
+        .item-amount {
+            font-weight: bold;
+            color: #059669;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.875rem;
+        }
+        
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+        
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #059669;
+        }
+        
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #374151;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s ease;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6b7280;
+        }
+        
+        .empty-state h3 {
+            margin-bottom: 10px;
+            color: #374151;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6b7280;
+        }
+        
+        .error {
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #fecaca;
+        }
+        
+        .success {
+            background: #f0fdf4;
+            color: #16a34a;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #bbf7d0;
+        }
+        
+        .offline-banner {
+            background: #fef3c7;
+            color: #92400e;
+            padding: 10px;
+            text-align: center;
+            font-size: 0.875rem;
+            border-bottom: 1px solid #fbbf24;
+        }
+        
+        @media (max-width: 640px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .nav {
+                flex-direction: column;
+            }
+            
+            .nav-btn {
+                min-width: auto;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .list-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .item-amount {
+                align-self: flex-end;
+            }
+        }
+    </style>
+</head>
+<body class="light-mode">
+
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-left">
+                <h1 id="headerTitle">Hola, Cobrador<span class="status-indicator status-online" id="statusIndicator"></span></h1>
+                <span id="offlineBadge" style="display:none;background:#ff4444;color:white;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:700;margin-left:10px;box-shadow:0 0 15px rgba(255,68,68,0.5);">0</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <button id="themeToggle" class="theme-toggle" title="Cambiar tema">🌓</button>
+                <button id="logoutBtn">Salir</button>
+            </div>
+        </div>
+
+        <!-- Offline Banner -->
+        <div class="offline-banner" id="offlineBanner" style="display: none;">
+            Modo offline - Los datos se sincronizarán cuando se restaure la conexión
+        </div>
+
+        <!-- HOME GRID -->
+        <div id="homeGrid" class="home-grid">
+            <div class="menu-card" data-view="pendientes">
+                <span class="menu-card-icon">📋</span>
+                <div class="menu-card-title">Cuotas Hoy</div>
+                <div class="menu-card-subtitle">Gestionar cobros pendientes</div>
+            </div>
+            
+            <div class="menu-card" data-view="clientes">
+                <span class="menu-card-icon">👥</span>
+                <div class="menu-card-title">Clientes</div>
+                <div class="menu-card-subtitle">Ver y crear clientes</div>
+            </div>
+            
+            <div class="menu-card" data-view="creditos">
+                <span class="menu-card-icon">💰</span>
+                <div class="menu-card-title">Créditos</div>
+                <div class="menu-card-subtitle">Créditos activos</div>
+            </div>
+            
+            <div class="menu-card" data-view="pagos">
+                <span class="menu-card-icon">💵</span>
+                <div class="menu-card-title">Mis Pagos</div>
+                <div class="menu-card-subtitle">Historial de cobros</div>
+            </div>
+            
+            <div class="menu-card full-width" data-view="resumen">
+                <span class="menu-card-icon">📊</span>
+                <div class="menu-card-title">Resumen</div>
+                <div class="menu-card-subtitle">Dashboard y estadísticas</div>
+            </div>
+        </div>
+
+        <!-- VIEWS CONTAINER -->
+        <div id="viewsContainer" style="display: none;">
+            <!-- Resumen View -->
+            <div class="view active" id="resumen">
+                <div class="view-header">
+                    <div class="view-title">📊 Resumen</div>
+                    <button class="back-btn" onclick="goHome()">🏠</button>
+                </div>
+                <div class="stats-grid">
+                    <!-- Total Cobrado Hoy -->
+                    <div class="stat-card" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                        <h3 style="color: white; font-size: 14px; margin-bottom: 8px;">Total cobrado hoy</h3>
+                        <div class="value" style="color: white; font-size: 28px; font-weight: bold;" id="totalCollected">$0</div>
+                    </div>
+                    
+                    <!-- Saldo Caja Hoy -->
+                    <div class="stat-card" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                        <h3 style="color: white; font-size: 14px; margin-bottom: 8px;">Saldo Caja Hoy</h3>
+                        <div class="value" style="color: white; font-size: 28px; font-weight: bold;" id="saldoCaja">$0</div>
+                        <div style="color: rgba(255,255,255,0.8); font-size: 11px; margin-top: 4px;">Base - Créditos - Gastos + Cobrado</div>
+                    </div>
+                    
+                    <!-- Créditos Hoy -->
+                    <div class="stat-card">
+                        <h3 style="font-size: 14px; color: #374151; margin-bottom: 8px;">Créditos Hoy</h3>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-size: 11px; color: #6b7280;">Cantidad</div>
+                                <div style="font-size: 24px; font-weight: bold; color: #1f2937;" id="creditosCount">#0</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 11px; color: #6b7280;">Monto</div>
+                                <div style="font-size: 20px; font-weight: bold; color: #f59e0b;" id="creditosMonto">$0</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Base Hoy -->
+                    <div class="stat-card">
+                        <h3 style="font-size: 14px; color: #374151; margin-bottom: 8px;">Base Hoy</h3>
+                        <div class="value" style="font-size: 24px; font-weight: bold; color: #6366f1;" id="baseDiaria">$0</div>
+                        <div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Capital inicial del día</div>
+                    </div>
+                    
+                    <!-- Gastos -->
+                    <div class="stat-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <h3 style="font-size: 14px; color: #374151; margin: 0;">Gastos</h3>
+                            <button 
+                                id="addGastoBtn"
+                                style="width: 32px; height: 32px; border-radius: 50%; background: #ef4444; color: white; border: none; font-size: 20px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                +
+                            </button>
+                        </div>
+                        <div class="value" style="font-size: 24px; font-weight: bold; color: #ef4444;" id="gastos">$0</div>
+                    </div>
+                    
+                    <!-- Clientes Hoy -->
+                    <div class="stat-card">
+                        <h3 style="font-size: 14px; color: #374151; margin-bottom: 8px;">Clientes Hoy</h3>
+                        <div class="value" style="font-size: 24px; font-weight: bold; color: #8b5cf6;" id="clientesCount">#0</div>
+                        <div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Clientes atendidos</div>
+                    </div>
+                    
+                    <!-- Detalles del día -->
+                    <div class="stat-card">
+                        <h3 style="font-size: 14px; color: #374151; margin-bottom: 8px;">Detalles del día</h3>
+                        <div style="text-align: left; margin-top: 10px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb;">
+                                <span style="font-size: 13px; color: #6b7280;">Pagos sincronizados:</span>
+                                <span style="font-size: 16px; font-weight: bold; color: #10b981;" id="syncedPayments">0</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="font-size: 13px; color: #6b7280;">Pendientes de enviar:</span>
+                                <span style="font-size: 16px; font-weight: bold; color: #f59e0b;" id="pendingPayments">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cuotas Pendientes View -->
+            <div class="view" id="pendientes">
+                <div class="view-header">
+                    <div class="view-title">📋 Cuotas Hoy</div>
+                    <button class="back-btn" onclick="goHome()">🏠</button>
+                </div>
+                <div class="list-container">
+                    <div class="list-header">Cuotas Pendientes de Hoy</div>
+                    
+                    <!-- Search Bar -->
+                    <div style="margin-bottom: 15px;">
+                        <input 
+                            type="text" 
+                            id="searchPendientes" 
+                            placeholder="🔍 Buscar por nombre o cédula..."
+                            style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px;">
+                    </div>
+                    
+                    <div id="pendingQuotasList">
+                        <div class="loading">Cargando cuotas...</div>
+                    </div>
+                    
+                    <!-- Pagination -->
+                    <div id="paginationPendientes" style="display: none; margin-top: 15px; text-align: center;"></div>
+                </div>
+            </div>
+
+            <!-- Clientes View -->
+            <div class="view" id="clientes">
+                <div class="view-header" style="display:flex;justify-content:space-between;align-items:center;padding:15px 20px;">
+                    <div class="view-title">👥 Clientes</div>
+                    <div style="display:flex;gap:10px;align-items:center;">
+                        <button 
+                            onclick="showCreateClientForm()" 
+                            style="
+                                padding: 8px 16px;
+                                font-size: 14px;
+                                font-weight: 600;
+                                background: #f59e0b;
+                                color: white;
+                                border: none;
+                                border-radius: 8px;
+                                cursor: pointer;
+                                box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+                                transition: all 0.3s ease;
+                            "
+                            onmouseover="this.style.background='#d97706';this.style.boxShadow='0 4px 12px rgba(245, 158, 11, 0.5)';"
+                            onmouseout="this.style.background='#f59e0b';this.style.boxShadow='0 2px 8px rgba(245, 158, 11, 0.3)';">
+                            ➕ Nuevo
+                        </button>
+                        <button class="back-btn" onclick="goHome()">🏠</button>
+                    </div>
+                </div>
+                
+                <div class="list-container">
+                    <div class="list-header">Mis Clientes</div>
+                    
+                    <!-- Search Bar -->
+                    <div style="margin-bottom: 15px;">
+                        <input 
+                            type="text" 
+                            id="searchClientes" 
+                            placeholder="🔍 Buscar por nombre, cédula o teléfono..."
+                            style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px;">
+                    </div>
+                    
+                    <div id="clientsList">
+                        <div class="loading">Cargando clientes...</div>
+                    </div>
+                    
+                    <!-- Pagination -->
+                    <div id="paginationClientes" style="display: none; margin-top: 15px; text-align: center;"></div>
+                </div>
+            </div>
+
+            <!-- Créditos View -->
+            <div class="view" id="creditos">
+                <div class="view-header" style="display:flex;justify-content:space-between;align-items:center;padding:15px 20px;">
+                    <div class="view-title">💰 Créditos</div>
+                    <div style="display:flex;gap:10px;align-items:center;">
+                        <button 
+                            onclick="showCreateCreditForm()" 
+                            style="
+                                padding: 8px 16px;
+                                font-size: 14px;
+                                font-weight: 600;
+                                background: #f59e0b;
+                                color: white;
+                                border: none;
+                                border-radius: 8px;
+                                cursor: pointer;
+                                box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+                                transition: all 0.3s ease;
+                            "
+                            onmouseover="this.style.background='#d97706';this.style.boxShadow='0 4px 12px rgba(245, 158, 11, 0.5)';"
+                            onmouseout="this.style.background='#f59e0b';this.style.boxShadow='0 2px 8px rgba(245, 158, 11, 0.3)';">
+                            ➕ Nuevo
+                        </button>
+                        <button class="back-btn" onclick="goHome()">🏠</button>
+                    </div>
+                </div>
+                
+                <div class="list-container">
+                    <div class="list-header">Créditos Activos</div>
+                    
+                    <!-- Search Bar -->
+                    <div style="margin-bottom: 15px;">
+                        <input 
+                            type="text" 
+                            id="searchCreditos" 
+                            placeholder="🔍 Buscar por cliente o cédula..."
+                            style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px;">
+                    </div>
+                    
+                    <div id="creditsList">
+                        <div class="loading">Cargando créditos...</div>
+                    </div>
+                    
+                    <!-- Pagination -->
+                    <div id="paginationCreditos" style="display: none; margin-top: 15px; text-align: center;"></div>
+                </div>
+            </div>
+
+            <!-- Mis Pagos View -->
+            <div class="view" id="pagos">
+                <div class="view-header">
+                    <div class="view-title">💵 Mis Pagos</div>
+                    <button class="back-btn" onclick="goHome()">🏠</button>
+                </div>
+                <div class="list-container">
+                    <div class="list-header">Mis Pagos Registrados</div>
+                    
+                    <!-- Search Bar -->
+                    <div style="margin-bottom: 15px;">
+                        <input 
+                            type="text" 
+                            id="searchPagos" 
+                            placeholder="🔍 Buscar por cliente o cédula..."
+                            style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px;">
+                    </div>
+                    
+                    <div id="paymentsList">
+                        <div class="loading">Cargando pagos...</div>
+                    </div>
+                    
+                    <!-- Pagination -->
+                    <div id="paginationPagos" style="display: none; margin-top: 15px; text-align: center;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="search-pagination.js"></script>
+    <script src="payment-forms.js"></script>
+    <script>
+        // Global app state
+        const APP = {
+            supabase: null,
+            ctx: null,
+            timezone: 'America/Bogota', // Default timezone
+            isOnline: navigator.onLine,
+            offlineData: {
+                payments: [],
+                credits: [],
+                clients: []
+            },
+            gpsEnabled: false,
+            lastLocation: null
+        };
+
+        // 🆕 loadOfflineData() y saveOfflineData() eliminadas - ahora usa IndexedDB en db.js
+
+        // ============ GPS FUNCTIONS ============
+        
+        // Check if GPS is already authorized
+        function checkGpsAuthorization() {
+            const gpsAuth = localStorage.getItem('gps_authorized');
+            return gpsAuth === 'true';
+        }
+
+        // Get current location (silent)
+        async function getCurrentLocation() {
+            return new Promise((resolve, reject) => {
+                if (!navigator.geolocation) {
+                    reject(new Error('Geolocalización no soportada'));
+                    return;
+                }
+                
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const location = {
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy: position.coords.accuracy,
+                            timestamp: new Date().toISOString()
+                        };
+                        APP.lastLocation = location;
+                        resolve(location);
+                    },
+                    (error) => {
+                        console.error('GPS Error:', error);
+                        reject(error);
+                    },
+                    {
+                        enableHighAccuracy: true,  // Use GPS on mobile
+                        timeout: 10000,            // 10 seconds max
+                        maximumAge: 0              // Don't use cache
+                    }
+                );
+            });
+        }
+
+        // Activate GPS (first time)
+        async function activateGps() {
+            const btn = document.getElementById('activateGpsBtn');
+            const errorDiv = document.getElementById('gpsError');
+            const instructionsDiv = document.getElementById('gpsInstructions');
+            
+            try {
+                // Check if HTTPS (required for mobile)
+                const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+                
+                if (!isSecure) {
+                    throw {
+                        code: 'HTTPS_REQUIRED',
+                        message: 'Se requiere HTTPS para acceder al GPS en móviles'
+                    };
+                }
+                
+                btn.textContent = '⏳ Solicitando permiso...';
+                btn.disabled = true;
+                errorDiv.style.display = 'none';
+                
+                // Show instructions for mobile
+                instructionsDiv.innerHTML = '<strong>👆 Mira en la parte superior de tu pantalla</strong><br>Aparecerá un mensaje del navegador. Presiona <strong>"Permitir"</strong> para continuar.';
+                instructionsDiv.style.display = 'block';
+                
+                // Request GPS permission
+                const location = await getCurrentLocation();
+                
+                // Save authorization
+                localStorage.setItem('gps_authorized', 'true');
+                APP.gpsEnabled = true;
+                
+                // Hide lock screen
+                document.getElementById('gpsLockScreen').style.display = 'none';
+                
+                console.log('✅ GPS activado:', location);
+                
+                // Continue with app initialization
+                init();
+                
+            } catch (error) {
+                console.error('❌ Error activating GPS:', error);
+                
+                instructionsDiv.style.display = 'none';
+                
+                let errorMsg = '';
+                let helpText = '';
+                const settingsBtn = document.getElementById('openSettingsBtn');
+                
+                // Detect browser
+                const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+                const isFirefox = /Firefox/.test(navigator.userAgent);
+                const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+                
+                switch(error.code) {
+                    case 1: // PERMISSION_DENIED
+                        errorMsg = '❌ Permiso bloqueado por el navegador';
+                        
+                        if (isChrome) {
+                            helpText = '<div style="margin-top:10px;padding:10px;background:#fff7ed;border-radius:6px;text-align:left;"><strong>📱 Chrome - Cómo activar:</strong><ol style="margin:8px 0;padding-left:20px;line-height:1.8;"><li>Toca el <strong>candado 🔒</strong> o los <strong>3 puntos ⋮</strong> arriba</li><li>Busca <strong>"Permisos"</strong> o <strong>"Configuración del sitio"</strong></li><li>Toca <strong>"Ubicación"</strong></li><li>Selecciona <strong>"Permitir"</strong></li><li>Recarga esta página (desliza hacia abajo)</li></ol><p style="margin:8px 0 0;font-size:12px;color:#92400e;"><strong>💡 Tip:</strong> Si no aparece el candado, toca el botón azul de abajo.</p></div>';
+                        } else if (isFirefox) {
+                            helpText = '<div style="margin-top:10px;padding:10px;background:#fff7ed;border-radius:6px;text-align:left;"><strong>📱 Firefox - Cómo activar:</strong><ol style="margin:8px 0;padding-left:20px;line-height:1.8;"><li>Toca el <strong>candado 🔒</strong> en la barra de direcciones</li><li>Toca <strong>"Permisos"</strong></li><li>Busca <strong>"Ubicación"</strong> y actívala</li><li>Recarga esta página</li></ol></div>';
+                        } else if (isSafari) {
+                            helpText = '<div style="margin-top:10px;padding:10px;background:#fff7ed;border-radius:6px;text-align:left;"><strong>📱 Safari - Cómo activar:</strong><ol style="margin:8px 0;padding-left:20px;line-height:1.8;"><li>Ve a <strong>Ajustes</strong> del iPhone</li><li>Busca <strong>Safari</strong></li><li>Toca <strong>"Ubicación"</strong></li><li>Selecciona <strong>"Permitir"</strong></li><li>Vuelve a la app y recarga</li></ol></div>';
+                        } else {
+                            helpText = '<div style="margin-top:10px;padding:10px;background:#fff7ed;border-radius:6px;text-align:left;"><strong>📱 Cómo activar el GPS:</strong><ol style="margin:8px 0;padding-left:20px;line-height:1.8;"><li>Busca el ícono de <strong>candado 🔒</strong> o <strong>ubicación 📍</strong> en la parte superior</li><li>Presiona sobre él</li><li>Selecciona <strong>"Permitir ubicación"</strong></li><li>Recarga la página</li></ol></div>';
+                        }
+                        
+                        // Show settings button for Chrome/Firefox
+                        if (isChrome || isFirefox) {
+                            settingsBtn.style.display = 'block';
+                            settingsBtn.onclick = openBrowserSettings;
+                        }
+                        break;
+                        
+                    case 2: // POSITION_UNAVAILABLE
+                        errorMsg = '❌ GPS no disponible';
+                        helpText = '<div style="margin-top:10px;padding:10px;background:#fff7ed;border-radius:6px;text-align:left;"><strong>Verifica:</strong><ul style="margin:8px 0;padding-left:20px;line-height:1.8;"><li>Que el <strong>GPS esté activado</strong> en tu dispositivo (Ajustes → Ubicación)</li><li>Que tengas <strong>conexión a internet</strong> o señal GPS</li><li>Que estés en un <strong>lugar con buena señal</strong> (sal al exterior si es posible)</li></ul></div>';
+                        break;
+                        
+                    case 3: // TIMEOUT
+                        errorMsg = '⏱️ Tiempo de espera agotado';
+                        helpText = '<div style="margin-top:10px;padding:10px;background:#fff7ed;border-radius:6px;text-align:left;">El GPS está tardando mucho. Intenta:<ul style="margin:8px 0;padding-left:20px;line-height:1.8;"><li><strong>Salir al exterior</strong> (mejor señal)</li><li><strong>Reiniciar el GPS</strong> de tu dispositivo</li><li><strong>Esperar unos segundos</strong> y reintentar</li></ul></div>';
+                        break;
+                        
+                    default:
+                        // Check for HTTPS error
+                        if (error.code === 'HTTPS_REQUIRED') {
+                            errorMsg = '🔒 Se requiere conexión segura (HTTPS)';
+                            helpText = '<div style="margin-top:10px;padding:10px;background:#fff7ed;border-radius:6px;text-align:left;"><strong>⚠️ Problema de seguridad:</strong><p style="margin:8px 0;">Los navegadores móviles (iPhone y Android) solo permiten acceso al GPS en sitios con <strong>HTTPS</strong> (conexión segura).</p><strong>📱 Solución permanente:</strong><ol style="margin:8px 0;padding-left:20px;line-height:1.8;"><li>Contacta al administrador del sistema</li><li>Solicita que active <strong>HTTPS</strong> en el dominio</li></ol><p style="margin:8px 0 0;font-size:12px;color:#92400e;"><strong>💡 Nota:</strong> Esta es una restricción de seguridad de los navegadores, no de la app.</p></div>';
+                            
+                            // Show skip button for HTTPS error
+                            const skipBtn = document.getElementById('skipGpsBtn');
+                            skipBtn.style.display = 'block';
+                            skipBtn.onclick = skipGpsActivation;
+                        } else {
+                            errorMsg = '❌ Error desconocido';
+                            helpText = '<div style="margin-top:10px;padding:10px;background:#fff7ed;border-radius:6px;">Intenta reiniciar tu navegador o dispositivo.</div>';
+                        }
+                }
+                
+                errorDiv.innerHTML = `<strong>${errorMsg}</strong>${helpText}`;
+                errorDiv.style.display = 'block';
+                
+                btn.textContent = '🔄 Reintentar';
+                btn.disabled = false;
+            }
+        }
+
+        // Skip GPS activation (temporary - for HTTPS issues)
+        function skipGpsActivation() {
+            console.warn('⚠️ Usuario continuó sin GPS (HTTPS no disponible)');
+            
+            // Mark as skipped (not authorized, but allowed to continue)
+            localStorage.setItem('gps_skipped', 'true');
+            APP.gpsEnabled = false;
+            
+            // Hide lock screen
+            document.getElementById('gpsLockScreen').style.display = 'none';
+            
+            // Show warning banner
+            showWarning('⚠️ Funcionando sin GPS. Contacta al administrador para activar HTTPS y habilitar el GPS.');
+            
+            // Continue with app initialization
+            init();
+        }
+
+        // Open browser settings (for Chrome/Firefox)
+        function openBrowserSettings() {
+            // Try to open site settings
+            const url = window.location.href;
+            
+            // Chrome
+            if (/Chrome/.test(navigator.userAgent)) {
+                window.location.href = 'chrome://settings/content/location';
+            }
+            // Firefox
+            else if (/Firefox/.test(navigator.userAgent)) {
+                alert('📱 Para activar el GPS:\n\n1. Toca el candado 🔒 arriba\n2. Toca "Permisos"\n3. Activa "Ubicación"\n4. Recarga la página');
+            }
+            // Fallback
+            else {
+                alert('📱 Busca el ícono de candado 🔒 en la barra de direcciones y activa la ubicación.');
+            }
+        }
+        
+        // Show warning (for GPS skipped)
+        function showWarning(message) {
+            const existingWarning = document.getElementById('gpsWarningBanner');
+            if (existingWarning) existingWarning.remove();
+            
+            const banner = document.createElement('div');
+            banner.id = 'gpsWarningBanner';
+            banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#fbbf24;color:#92400e;padding:12px;text-align:center;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 2px 4px rgba(0,0,0,0.1);';
+            banner.innerHTML = message;
+            document.body.insertBefore(banner, document.body.firstChild);
+        }
+
+        // Check GPS on app start
+        function checkGpsOnStart() {
+            // Just init the app directly without GPS lock
+            init();
+        }
+
+        // Initialize app
+        async function init() {
+            try {
+                console.log('🚀 Iniciando Cobrador App v3.0...');
+                
+                // 🆕 1. Inicializar IndexedDB
+                try {
+                    await initDB();
+                    console.log('✅ IndexedDB inicializado');
+                } catch (dbError) {
+                    console.warn('⚠️ IndexedDB falló, usando localStorage:', dbError);
+                }
+                
+                // 🆕 2. Inicializar sistema de cifrado
+                try {
+                    await initCrypto();
+                    console.log('✅ Sistema de cifrado inicializado');
+                } catch (cryptoError) {
+                    console.warn('⚠️ Cifrado no disponible:', cryptoError);
+                }
+                
+                // 3. Initialize Supabase
+                APP.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                
+                // 4. Check authentication
+                const { data: { session } } = await APP.supabase.auth.getSession();
+                if (!session) {
+                    showLogin();
+                    return;
+                }
+                
+                // 5. Get collector context
+                await getCollectorContext();
+                
+                console.log('📍 About to setup event listeners...');
+                
+                // 6. Setup event listeners
+                setupEventListeners();
+                
+                console.log('📍 Event listeners setup complete, loading data...');
+                
+                // 7. Load initial data (online) OR from cache (offline)
+                await loadDashboardData();
+                
+                // 8. Setup offline handling & connection listeners
+                setupOfflineHandling();
+                
+                // 🆕 9. Sync offline data if online
+                if (APP.isOnline && navigator.onLine) {
+                    console.log('🔄 Online detectado - sincronizando datos pendientes...');
+                    await syncOfflineData();
+                }
+                
+                console.log('✅ App inicializada correctamente');
+                
+            } catch (error) {
+                console.error('❌ Error initializing app:', error);
+                showError('Error al inicializar la aplicación');
+                
+                // Even if there's an error, try to setup event listeners
+                console.log('⚠️ Trying to setup event listeners after error...');
+                try {
+                    setupEventListeners();
+                } catch (e) {
+                    console.error('Failed to setup event listeners:', e);
+                }
+            }
+        }
+
+        // Get collector context
+        async function getCollectorContext() {
+            try {
+                const { data: { user } } = await APP.supabase.auth.getUser();
+                if (!user) throw new Error('No user found');
+
+                console.log('Auth user:', user);
+
+                // Extraer nombre del user_metadata o del email
+                let collectorName = 'Cobrador';
+                if (user.user_metadata?.nombre) {
+                    // Si hay nombre en metadata, usar solo la primera palabra
+                    collectorName = user.user_metadata.nombre.split(' ')[0];
+                } else {
+                    // Si no, extraer del email (antes del @)
+                    const emailName = user.email?.split('@')[0] || 'Cobrador';
+                    // Capitalizar primera letra
+                    collectorName = emailName.charAt(0).toUpperCase() + emailName.slice(1);
+                }
+
+                // Try collectors table first
+                let { data: collector, error } = await APP.supabase
+                    .from('collectors')
+                    .select('id, panel_id, user_id')
+                    .eq('user_id', user.id)
+                    .single();
+
+                console.log('Collectors query result:', { collector, error });
+
+                // If not found, try cobradores table
+                if (error || !collector) {
+                    const { data: cobrador, error: err2 } = await APP.supabase
+                        .from('cobradores')
+                        .select('id, panel_id, user_id')
+                        .eq('user_id', user.id)
+                        .single();
+                    
+                    console.log('Cobradores query result:', { cobrador, err2 });
+                    
+                    if (err2 && err2.code !== 'PGRST116') {
+                        console.error('Error querying cobradores:', err2);
+                    }
+                    
+                    if (cobrador) {
+                        collector = cobrador;
+                    }
+                }
+
+                if (!collector) {
+                    console.error('❌ No se encontró cobrador para este usuario');
+                    // Logout automático si no hay cobrador
+                    await APP.supabase.auth.signOut();
+                    showError('No se encontró el cobrador asociado a este usuario. Cerrando sesión...');
+                    setTimeout(() => {
+                        showLogin();
+                    }, 2000);
+                    throw new Error('Collector not found in collectors or cobradores table');
+                }
+
+                console.log('🕐 Fetching timezone for panel:', collector.panel_id);
+                
+                // Get timezone from settings
+                try {
+                    const { data: tzData, error: tzError } = await APP.supabase
+                        .from('settings')
+                        .select('value')
+                        .eq('panel_id', collector.panel_id)
+                        .eq('key', 'timezone')
+                        .maybeSingle();
+                    
+                    console.log('🕐 Timezone query result:', { tzData, tzError });
+                    APP.timezone = (tzData?.value || 'America/Bogota');
+                    console.log('Timezone loaded:', APP.timezone);
+                } catch (tzErr) {
+                    console.error('Error loading timezone, using default:', tzErr);
+                    APP.timezone = 'America/Bogota';
+                }
+
+                APP.ctx = {
+                    panelId: collector.panel_id,
+                    collectorId: collector.id,
+                    userId: user.id,
+                    collectorName: collectorName,
+                    userEmail: user.email
+                };
+
+                // Update header with collector name
+                const headerTitle = document.getElementById('headerTitle');
+                if (headerTitle) {
+                    headerTitle.innerHTML = `Hola, ${collectorName} <span class="status-indicator status-online" id="statusIndicator"></span>`;
+                }
+
+                console.log('✅ Collector context loaded:', APP.ctx);
+                console.log('📍 getCollectorContext() completed successfully');
+                return; // Exit function successfully
+            } catch (error) {
+                console.error('❌ Error getting collector context:', error);
+                showError('No se pudo cargar el contexto del cobrador: ' + error.message);
+                throw error;
+            }
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            console.log('🔧 Starting setupEventListeners()...');
+            
+            // Navigation - usar event delegation para asegurar que funcione
+            // Home Grid - event delegation for menu cards
+            const homeGrid = document.getElementById('homeGrid');
+            console.log('Setting up home grid:', homeGrid);
+            if (homeGrid) {
+                homeGrid.addEventListener('click', (e) => {
+                    const card = e.target.closest('.menu-card');
+                    if (card && card.dataset.view) {
+                        const view = card.dataset.view;
+                        console.log('Menu card clicked, view:', view);
+                        switchView(view);
+                    }
+                });
+                console.log('✅ Home grid event listener attached');
+            } else {
+                console.error('❌ homeGrid not found!');
+            }
+            
+            // BACKUP: Also add direct listeners to each nav button
+            const navButtons = document.querySelectorAll('.nav-btn');
+            console.log('Found nav buttons:', navButtons.length);
+            navButtons.forEach((btn, index) => {
+                const view = btn.dataset.view;
+                console.log(`  Button ${index}: ${view}`);
+                btn.addEventListener('click', (e) => {
+                    console.log(`🎯 Direct click on button: ${view}`);
+                    e.preventDefault();
+                    e.stopPropagation();
+                    switchView(view);
+                });
+            });
+            console.log('✅ Direct nav listeners attached to', navButtons.length, 'buttons');
+
+            // Logout
+            const logoutBtn = document.getElementById('logoutBtn');
+            console.log('🔍 Logout button found:', logoutBtn);
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('🔴 Logout button clicked!');
+                    await logout();
+                });
+                console.log('✅ Logout event listener added');
+            } else {
+                console.error('❌ Logout button not found!');
+            }
+
+            // Add Gasto button
+            const addGastoBtn = document.getElementById('addGastoBtn');
+            console.log('🔍 Add Gasto button found:', addGastoBtn);
+            if (addGastoBtn) {
+                addGastoBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('➕ Add Gasto button clicked!');
+                    showAddGastoForm();
+                });
+                console.log('✅ Add Gasto event listener added');
+            } else {
+                console.warn('⚠️ Add Gasto button not found');
+            }
+
+            // Note: Online/Offline listeners are now in setupOfflineHandling()
+        }
+
+        // Switch view
+        function switchView(viewName) {
+            console.log('Switching to view:', viewName);
+            
+            // Update nav buttons
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-view="${viewName}"]`).classList.add('active');
+
+            // Update content
+            document.querySelectorAll('.view').forEach(view => {
+                view.classList.remove('active');
+            });
+            const targetView = document.getElementById(viewName);
+            if (targetView) {
+                targetView.classList.add('active');
+                console.log('View activated:', viewName, targetView);
+            }
+
+            // If switching to clients view, ensure create button is visible
+            if (viewName === 'clientes') {
+                const createBtn = document.getElementById('createClientBtn');
+                console.log('Create client button:', createBtn, 'Display:', createBtn?.style.display);
+            }
+
+            // Load view data
+            loadViewData(viewName);
+        }
+
+        // Load view data
+        async function loadViewData(viewName) {
+            try {
+                switch (viewName) {
+                    case 'pendientes':
+                        await loadPendingQuotas();
+                        break;
+                    case 'clientes':
+                        await loadClients();
+                        break;
+                    case 'creditos':
+                        await loadCredits();
+                        break;
+                    case 'pagos':
+                        await loadPayments();
+                        break;
+                }
+            } catch (error) {
+                console.error(`Error loading ${viewName}:`, error);
+                showError(`Error al cargar ${viewName}`);
+            }
+        }
+
+        // Load dashboard data
+        async function loadDashboardData() {
+            try {
+                console.log('📊 Cargando datos del dashboard...');
+                
+                // Check if online or offline
+                if (!navigator.onLine) {
+                    APP.isOnline = false;
+                    console.log('📵 Offline - intentando cargar desde cache...');
+                    
+                    // 🆕 Try to load from IndexedDB cache
+                    await loadFromCacheIfOffline();
+                } else {
+                    APP.isOnline = true;
+                    console.log('🌐 Online - cargando desde Supabase...');
+                    
+                    // Load fresh data from Supabase
+                    await Promise.all([
+                        loadPendingQuotas(),
+                        loadClients(),
+                        loadCredits(),
+                        loadPayments()
+                    ]);
+                    
+                    // 🆕 Save to cache after successful load
+                    await saveDashboardToCache();
+                }
+                
+                updateDashboardStats();
+            } catch (error) {
+                console.error('❌ Error loading dashboard data:', error);
+            }
+        }
+
+        // 🆕 Load dashboard from IndexedDB cache (offline mode)
+        async function loadFromCacheIfOffline() {
+            console.log('📂 Cargando datos desde cache IndexedDB...');
+            
+            try {
+                // Load cached data
+                const cachedQuotas = await loadFromCache('cuotas_cache');
+                const cachedClients = await loadFromCache('clientes_cache');
+                const cachedCredits = await loadFromCache('creditos_cache');
+                const cachedPayments = await loadFromCache('pagos_cache');
+                
+                // Render data if available
+                if (cachedQuotas.length > 0) {
+                    console.log(`📋 Cuotas en cache: ${cachedQuotas.length}`);
+                    // Render cuotas...
+                }
+                
+                if (cachedClients.length > 0) {
+                    console.log(`👥 Clientes en cache: ${cachedClients.length}`);
+                    // Render clients...
+                }
+                
+                if (cachedCredits.length > 0) {
+                    console.log(`💰 Créditos en cache: ${cachedCredits.length}`);
+                    // Render credits...
+                }
+                
+                if (cachedPayments.length > 0) {
+                    console.log(`💵 Pagos en cache: ${cachedPayments.length}`);
+                    // Render payments...
+                }
+                
+                // Show offline message in containers
+                const quotasContainer = document.getElementById('pendingQuotasList');
+                const clientsContainer = document.getElementById('clientsList');
+                const creditsContainer = document.getElementById('creditsList');
+                const paymentsContainer = document.getElementById('paymentsList');
+                
+                if (quotasContainer && cachedQuotas.length === 0) {
+                    quotasContainer.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>No hay datos en cache</p></div>';
+                }
+                if (clientsContainer && cachedClients.length === 0) {
+                    clientsContainer.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>No hay datos en cache</p></div>';
+                }
+                if (creditsContainer && cachedCredits.length === 0) {
+                    creditsContainer.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>No hay datos en cache</p></div>';
+                }
+                if (paymentsContainer && cachedPayments.length === 0) {
+                    paymentsContainer.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>No hay datos en cache</p></div>';
+                }
+                
+            } catch (error) {
+                console.error('❌ Error cargando desde cache:', error);
+            }
+        }
+
+        // 🆕 Save dashboard data to IndexedDB cache
+        async function saveDashboardToCache() {
+            console.log('💾 Guardando datos en cache IndexedDB...');
+            
+            // Este método será llamado por cada función de carga individual
+            // No necesitamos hacer nada aquí por ahora
+            // Las funciones loadPendingQuotas, loadClients, etc. llamarán a saveToCache()
+        }
+
+        // Format date without timezone issues
+        // Uses the configured timezone to display dates consistently with the backend
+        function formatDate(dateString) {
+            if (!dateString) return 'N/A';
+            try {
+                // Si la fecha ya viene como YYYY-MM-DD sin hora, usarla directamente
+                if (!dateString.includes('T') && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    const [year, month, day] = dateString.split('-');
+                    return `${day}/${month}/${year}`;
+                }
+                
+                // Si tiene timestamp, convertir usando timezone configurado
+                const date = new Date(dateString);
+                if (isNaN(date.getTime())) {
+                    // Fallback: extraer solo la parte de fecha
+                    const dateOnly = dateString.split('T')[0];
+                    const [year, month, day] = dateOnly.split('-');
+                    return `${day}/${month}/${year}`;
+                }
+                
+                // Convertir a timezone local configurado
+                // Nota: En JavaScript, toLocaleString con timeZone nos da la fecha correcta
+                const localDate = date.toLocaleString('en-CA', { 
+                    timeZone: APP.timezone,
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                }).split(',')[0]; // YYYY-MM-DD
+                
+                const [year, month, day] = localDate.split('-');
+                return `${day}/${month}/${year}`;
+            } catch (error) {
+                console.error('Error formatting date:', dateString, error);
+                // Último fallback
+                try {
+                    const dateOnly = dateString.split('T')[0];
+                    const [year, month, day] = dateOnly.split('-');
+                    return `${day}/${month}/${year}`;
+                } catch {
+                    return dateString;
+                }
+            }
+        }
+        
+        // Get current local date in YYYY-MM-DD format using configured timezone
+        function getLocalToday() {
+            try {
+                const now = new Date();
+                const localDate = now.toLocaleString('en-CA', { 
+                    timeZone: APP.timezone,
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                }).split(',')[0]; // YYYY-MM-DD
+                return localDate;
+            } catch (error) {
+                console.error('Error getting local today:', error);
+                return new Date().toISOString().split('T')[0];
+            }
+        }
+
+        // Load pending loans with details (similar to main panel)
+        async function loadPendingQuotas() {
+            console.log('🚀 INICIANDO loadPendingQuotas()');
+            const container = document.getElementById('pendingQuotasList');
+            if (!container) {
+                console.error('❌ No se encontró el contenedor pendingQuotasList');
+                return;
+            }
+            container.innerHTML = '<div class="loading">Cargando préstamos...</div>';
+
+            try {
+                // Check online status first
+                if (!navigator.onLine) {
+                    APP.isOnline = false;
+                    updateConnectionStatus();
+                }
+
+                // If offline, show message
+                if (!APP.isOnline || !navigator.onLine) {
+                    console.log('📵 Offline mode - cannot load pending quotas');
+                    container.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>Conecta a internet para ver las cuotas pendientes</p></div>';
+                    return;
+                }
+
+                const today = getLocalToday();
+                console.log('📅 Fecha local hoy:', today);
+                console.log('Loading pending loans for today:', today);
+                
+                // Get active loans for this collector
+                const { data: loans, error: loansError } = await APP.supabase
+                    .from('prestamos')
+                    .select(`
+                        id,
+                        cliente_id,
+                        monto_prestado,
+                        cuota_diaria,
+                        total_dias,
+                        fecha_inicio,
+                        estado,
+                        clients:cliente_id (
+                            id,
+                            nombre,
+                            cedula
+                        )
+                    `)
+                    .eq('panel_id', APP.ctx.panelId)
+                    .eq('cobrador_id', APP.ctx.collectorId)
+                    .in('estado', ['activo', 'vencido'])
+                    .order('fecha_inicio', { ascending: false });
+
+                if (loansError) throw loansError;
+
+                console.log('📊 Préstamos activos encontrados:', loans?.length || 0);
+                console.log('Préstamos:', loans);
+
+                if (!loans || loans.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><h3>No hay préstamos activos</h3><p>No tienes préstamos asignados</p></div>';
+                    return;
+                }
+
+                // For each loan, get cuotas summary
+                const loansWithDetails = await Promise.all(loans.map(async (loan) => {
+                    const { data: cuotas } = await APP.supabase
+                        .from('cuotas')
+                        .select('estado, saldo_pendiente, fecha_vencimiento, monto_cuota')
+                        .eq('prestamo_id', loan.id)
+                        .order('numero_cuota');
+                    
+                    const totalCuotas = cuotas?.length || 0;
+                    const paidCuotas = cuotas?.filter(c => c.estado === 'pagada').length || 0;
+                    const pendingAmount = cuotas?.reduce((sum, c) => {
+                        if (c.estado !== 'pagada') {
+                            return sum + Number(c.saldo_pendiente || 0);
+                        }
+                        return sum;
+                    }, 0) || 0;
+                    
+                    // Calculate overdue days
+                    let maxOverdue = 0;
+                    const todayDate = new Date(today);
+                    cuotas?.forEach(c => {
+                        if (c.estado !== 'pagada') {
+                            const dueDate = new Date(c.fecha_vencimiento);
+                            if (dueDate < todayDate) {
+                                const diffDays = Math.floor((todayDate - dueDate) / (1000 * 60 * 60 * 24));
+                                maxOverdue = Math.max(maxOverdue, diffDays);
+                            }
+                        }
+                    });
+                    
+                    const totalAmount = loan.cuota_diaria * loan.total_dias;
+                    const paidAmount = totalAmount - pendingAmount;
+                    const progress = totalAmount > 0 ? Math.round((paidAmount / totalAmount) * 100) : 0;
+                    
+                    return {
+                        ...loan,
+                        totalCuotas,
+                        paidCuotas,
+                        pendingAmount,
+                        daysOverdue: maxOverdue,
+                        totalAmount,
+                        paidAmount,
+                        progress
+                    };
+                }));
+
+                // Store data and render with pagination
+                console.log('✅ Préstamos con detalles:', loansWithDetails.length);
+                PAGINATION_STATE.pendientes.allData = loansWithDetails;
+                PAGINATION_STATE.pendientes.filteredData = loansWithDetails;
+                PAGINATION_STATE.pendientes.currentPage = 1;
+                
+                // Setup search listener
+                setupSearchListener('pendientes', ['clients.nombre', 'clients.cedula'], renderPendientes);
+                
+                // Render with pagination
+                renderPendientes(loansWithDetails);
+            } catch (error) {
+                console.error('Error loading pending loans:', error);
+                console.error('Context:', APP.ctx);
+                container.innerHTML = `<div class="error">Error al cargar los préstamos: ${error.message || 'Error desconocido'}</div>`;
+            }
+        }
+
+        // Load clients
+        async function loadClients() {
+            const container = document.getElementById('clientsList');
+            if (!container) return;
+            
+            container.innerHTML = '<div class="loading">Cargando clientes...</div>';
+
+            try {
+                // Check online status first
+                if (!navigator.onLine) {
+                    APP.isOnline = false;
+                    updateConnectionStatus();
+                }
+
+                // If offline, show message
+                if (!APP.isOnline || !navigator.onLine) {
+                    console.log('📵 Offline mode - showing limited clients data');
+                    container.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>Conecta a internet para ver la lista completa de clientes</p></div>';
+                    return;
+                }
+
+                // Get ALL clients from the panel (like main app)
+                const { data, error } = await APP.supabase
+                    .from('clients')
+                    .select('id, nombre, telefono, email, cedula')
+                    .eq('panel_id', APP.ctx.panelId)
+                    .order('nombre');
+
+                if (error) throw error;
+
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><h3>No hay clientes</h3><p>No hay clientes registrados</p></div>';
+                    return;
+                }
+
+                // Store data and render with pagination
+                PAGINATION_STATE.clientes.allData = data;
+                PAGINATION_STATE.clientes.filteredData = data;
+                PAGINATION_STATE.clientes.currentPage = 1;
+                
+                // Setup search listener
+                setupSearchListener('clientes', ['nombre', 'cedula', 'telefono'], renderClientes);
+                
+                // Render with pagination
+                renderClientes(data);
+            } catch (error) {
+                console.error('Error loading clients:', error);
+                console.error('Context:', APP.ctx);
+                container.innerHTML = `<div class="error">Error al cargar los clientes: ${error.message || 'Error desconocido'}</div>`;
+            }
+        }
+
+        // Load credits
+        async function loadCredits() {
+            const container = document.getElementById('creditsList');
+            if (!container) return;
+            
+            container.innerHTML = '<div class="loading">Cargando créditos...</div>';
+
+            try {
+                // Check online status first
+                if (!navigator.onLine) {
+                    APP.isOnline = false;
+                    updateConnectionStatus();
+                }
+
+                // If offline, show message
+                if (!APP.isOnline || !navigator.onLine) {
+                    console.log('📵 Offline mode - cannot load credits');
+                    container.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>Conecta a internet para ver los créditos</p></div>';
+                    return;
+                }
+
+                const { data, error } = await APP.supabase
+                    .from('prestamos')
+                    .select(`
+                        id,
+                        monto_prestado,
+                        cuota_diaria,
+                        total_dias,
+                        estado,
+                        fecha_inicio,
+                        monto_pagado,
+                        saldo_pendiente,
+                        clients:cliente_id (
+                            nombre,
+                            telefono,
+                            cedula
+                        )
+                    `)
+                    .eq('panel_id', APP.ctx.panelId)
+                    .eq('cobrador_id', APP.ctx.collectorId)
+                    .eq('estado', 'activo')
+                    .order('fecha_inicio', { ascending: false });
+
+                if (error) throw error;
+
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><h3>No hay créditos activos</h3><p>No tienes créditos activos</p></div>';
+                    return;
+                }
+
+                // Store data and render with pagination
+                PAGINATION_STATE.creditos.allData = data;
+                PAGINATION_STATE.creditos.filteredData = data;
+                PAGINATION_STATE.creditos.currentPage = 1;
+                
+                // Setup search listener
+                setupSearchListener('creditos', ['clients.nombre', 'clients.cedula'], renderCreditos);
+                
+                // Render with pagination
+                renderCreditos(data);
+            } catch (error) {
+                console.error('Error loading credits:', error);
+                console.error('Context:', APP.ctx);
+                container.innerHTML = `<div class="error">Error al cargar los créditos: ${error.message || 'Error desconocido'}</div>`;
+            }
+        }
+
+        // Load payments
+        async function loadPayments() {
+            const container = document.getElementById('paymentsList');
+            if (!container) return;
+            
+            container.innerHTML = '<div class="loading">Cargando pagos...</div>';
+
+            try {
+                // Check online status first
+                if (!navigator.onLine) {
+                    APP.isOnline = false;
+                    updateConnectionStatus();
+                }
+
+                // If offline, show message
+                if (!APP.isOnline || !navigator.onLine) {
+                    console.log('📵 Offline mode - cannot load payments');
+                    container.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>Conecta a internet para ver los pagos</p></div>';
+                    return;
+                }
+
+                const { data, error } = await APP.supabase
+                    .from('pagos')
+                    .select(`
+                        id,
+                        monto,
+                        fecha_pago,
+                        hora_pago,
+                        estado,
+                        created_at,
+                        clients:cliente_id (
+                            nombre,
+                            cedula
+                        ),
+                        prestamos:prestamo_id (
+                            id
+                        )
+                    `)
+                    .eq('panel_id', APP.ctx.panelId)
+                    .eq('cobrador_id', APP.ctx.collectorId)
+                    .order('created_at', { ascending: false })
+                    .limit(100);
+
+                if (error) throw error;
+
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><h3>No hay pagos registrados</h3><p>No has registrado pagos aún</p></div>';
+                    return;
+                }
+
+                // Store data and render with pagination
+                PAGINATION_STATE.pagos.allData = data;
+                PAGINATION_STATE.pagos.filteredData = data;
+                PAGINATION_STATE.pagos.currentPage = 1;
+                
+                // Setup search listener
+                setupSearchListener('pagos', ['clients.nombre', 'clients.cedula'], renderPagos);
+                
+                // Render with pagination
+                renderPagos(data);
+
+                // Update dashboard stats
+                updateDashboardStatsWithPayments(data);
+            } catch (error) {
+                console.error('Error loading payments:', error);
+                console.error('Context:', APP.ctx);
+                container.innerHTML = `<div class="error">Error al cargar los pagos: ${error.message || 'Error desconocido'}</div>`;
+            }
+        }
+
+        // Update dashboard stats
+        function updateDashboardStats() {
+            loadTodayStats();
+        }
+
+        // Update dashboard stats with payments data
+        function updateDashboardStatsWithPayments(payments) {
+            const today = getLocalToday();
+            const todayPayments = payments.filter(p => p.fecha_pago === today);
+            
+            const totalCollected = todayPayments.reduce((sum, p) => sum + Number(p.monto), 0);
+            const quotasRegistered = todayPayments.length;
+            
+            // Update only existing elements
+            const totalCollectedEl = document.getElementById('totalCollected');
+            const syncedPaymentsEl = document.getElementById('syncedPayments');
+            const pendingPaymentsEl = document.getElementById('pendingPayments');
+            
+            if (totalCollectedEl) totalCollectedEl.textContent = '$' + totalCollected.toLocaleString();
+            if (syncedPaymentsEl) syncedPaymentsEl.textContent = quotasRegistered;
+            if (pendingPaymentsEl) pendingPaymentsEl.textContent = APP.offlineData.payments.length;
+        }
+
+        // Load today's stats using optimized RPC
+        async function loadTodayStats() {
+            try {
+                const today = getLocalToday();
+                console.log('📊 Loading dashboard stats for:', today);
+                
+                // Call optimized RPC that returns all metrics in one query
+                const { data, error } = await APP.supabase
+                    .rpc('get_collector_daily_summary', {
+                        p_collector_id: APP.ctx.collectorId,
+                        p_fecha: today
+                    });
+
+                if (error) {
+                    console.error('RPC error:', error);
+                    throw error;
+                }
+
+                console.log('📊 Dashboard data received:', data);
+
+                // Update all dashboard metrics
+                document.getElementById('totalCollected').textContent = '$' + Number(data.total_cobrado || 0).toLocaleString();
+                document.getElementById('saldoCaja').textContent = '$' + Number(data.saldo_caja || 0).toLocaleString();
+                document.getElementById('creditosCount').textContent = '#' + (data.creditos_count || 0);
+                document.getElementById('creditosMonto').textContent = '$' + Number(data.creditos_monto || 0).toLocaleString();
+                document.getElementById('baseDiaria').textContent = '$' + Number(data.base_diaria || 0).toLocaleString();
+                document.getElementById('gastos').textContent = '$' + Number(data.gastos || 0).toLocaleString();
+                document.getElementById('clientesCount').textContent = '#' + (data.clientes_count || 0);
+                document.getElementById('syncedPayments').textContent = data.pagos_sincronizados || 0;
+                document.getElementById('pendingPayments').textContent = APP.offlineData.payments.length;
+            } catch (error) {
+                console.error('❌ Error loading dashboard stats:', error);
+                // Show zeros on error
+                document.getElementById('totalCollected').textContent = '$0';
+                document.getElementById('saldoCaja').textContent = '$0';
+                document.getElementById('creditosCount').textContent = '#0';
+                document.getElementById('creditosMonto').textContent = '$0';
+                document.getElementById('baseDiaria').textContent = '$0';
+                document.getElementById('gastos').textContent = '$0';
+                document.getElementById('clientesCount').textContent = '#0';
+                document.getElementById('syncedPayments').textContent = '0';
+                document.getElementById('pendingPayments').textContent = '0';
+            }
+        }
+
+        // Register payment
+        async function registerPayment(quotaId, amount, prestamoId, clienteId) {
+            if (!APP.isOnline) {
+                // Store offline
+                APP.offlineData.payments.push({
+                    cuota_id: quotaId,
+                    prestamo_id: prestamoId,
+                    cliente_id: clienteId,
+                    monto: amount,
+                    fecha_pago: getLocalToday(),
+                    hora_pago: new Date().toTimeString().split(' ')[0],
+                    status: 'pending_sync'
+                });
+                showSuccess('Pago guardado offline - se sincronizará cuando se restaure la conexión');
+                return;
+            }
+
+            try {
+                // Generate idempotency key to prevent duplicates
+                const idempotencyKey = `${APP.ctx.collectorId}-${quotaId}-${Date.now()}`;
+                
+                const { error } = await APP.supabase
+                    .from('pagos')
+                    .insert({
+                        panel_id: APP.ctx.panelId,
+                        cliente_id: clienteId,
+                        prestamo_id: prestamoId,
+                        cobrador_id: APP.ctx.collectorId,
+                        monto: amount,
+                        fecha_pago: getLocalToday(),
+                        hora_pago: new Date().toTimeString().split(' ')[0],
+                        estado: 'registrado',
+                        idempotency_key: idempotencyKey,
+                        created_by: APP.ctx.userId
+                    });
+
+                if (error) throw error;
+
+                showSuccess('Pago registrado exitosamente');
+                loadPendingQuotas();
+                loadPayments();
+                updateDashboardStats();
+            } catch (error) {
+                console.error('Error registering payment:', error);
+                showError('Error al registrar el pago: ' + error.message);
+            }
+        }
+
+        // View client details
+        function viewClientDetails(clientId) {
+            // This would open a modal or navigate to client details
+            console.log('View client details:', clientId);
+        }
+
+        // View credit details
+        function viewCreditDetails(creditId) {
+            // This would open a modal or navigate to credit details
+            console.log('View credit details:', creditId);
+        }
+
+        // Show create client form (con overlay)
+        function showCreateClientForm() {
+            console.log('🆕 showCreateClientForm called');
+            
+            // Usar el mismo patrón de overlay que Registrar Pago
+            document.body.insertAdjacentHTML('beforeend', `
+                <div id="clientModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;">
+                    <div style="background:white;border-radius:15px;padding:20px;max-width:400px;width:100%;max-height:90vh;overflow-y:auto;">
+                        <h3 style="margin:0 0 15px;color:#333;">Crear Nuevo Cliente</h3>
+                        <form id="newClientForm" style="display:grid;gap:12px;">
+                            <div>
+                                <label style="display:block;margin-bottom:5px;font-weight:600;color:#374151;">Nombre completo *</label>
+                                <input type="text" id="clientName" class="form-input" required placeholder="Ej: Juan Pérez" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;">
+                            </div>
+                            <div>
+                                <label style="display:block;margin-bottom:5px;font-weight:600;color:#374151;">Cédula *</label>
+                                <input type="text" id="clientCedula" class="form-input" required placeholder="Ej: 1234567890" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;">
+                            </div>
+                            <div>
+                                <label style="display:block;margin-bottom:5px;font-weight:600;color:#374151;">Teléfono *</label>
+                                <input type="tel" id="clientPhone" class="form-input" placeholder="Ej: 3001234567" required style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;">
+                            </div>
+                            <div style="display:flex;gap:10px;margin-top:10px;">
+                                <button type="submit" class="btn btn-success" style="flex:1;padding:12px;">Guardar Cliente</button>
+                                <button type="button" onclick="hideCreateClientForm()" class="btn" style="flex:1;padding:12px;background:#6c757d;color:white;">Cancelar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `);
+
+            document.getElementById('newClientForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await createClient();
+            });
+        }
+
+        // Hide create client form
+        function hideCreateClientForm() {
+            document.getElementById('clientModal')?.remove();
+        }
+
+        // Create client
+        async function createClient() {
+            const submitBtn = document.querySelector('#newClientForm button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Guardando...';
+
+            try {
+                const name = document.getElementById('clientName').value.trim();
+                const cedula = document.getElementById('clientCedula').value.trim();
+                const phone = document.getElementById('clientPhone').value.trim();
+
+                if (!name || !cedula || !phone) {
+                    throw new Error('Por favor completa todos los campos obligatorios');
+                }
+
+                // Normalize phone to Colombian format
+                let normalizedPhone = phone.replace(/[\s\-\(\)]/g, '');
+                if (!normalizedPhone.startsWith('+57') && !normalizedPhone.startsWith('57')) {
+                    if (normalizedPhone.length === 10) {
+                        normalizedPhone = '+57' + normalizedPhone;
+                    }
+                }
+
+                // Capture GPS location silently
+                let location = null;
+                try {
+                    location = await getCurrentLocation();
+                    console.log('📍 GPS capturado:', location);
+                } catch (gpsError) {
+                    console.warn('⚠️ No se pudo capturar GPS:', gpsError);
+                    // Continue without GPS
+                }
+
+                console.log('Creating client with:', { panel_id: APP.ctx.panelId, nombre: name, cedula, telefono: normalizedPhone });
+
+                const clientData = {
+                    panel_id: APP.ctx.panelId,
+                    nombre: name,
+                    cedula: cedula,
+                    telefono: normalizedPhone
+                };
+
+                // Add GPS data if available
+                if (location) {
+                    clientData.lat = location.latitude;
+                    clientData.lng = location.longitude;
+                }
+
+                // 🆕 Check if online
+                if (!APP.isOnline || !navigator.onLine) {
+                    // Save offline using IndexedDB
+                    console.log('📵 Offline - guardando cliente en IndexedDB...');
+                    
+                    const temp_id = await saveOffline('offline_clientes', clientData);
+                    console.log('✅ Cliente guardado offline:', temp_id);
+                    
+                    await updateConnectionStatus();
+                    
+                    showSuccess('💾 Cliente guardado offline - se sincronizará cuando haya conexión');
+                    hideCreateClientForm();
+                    // Don't reload clients list (offline mode)
+                    return;
+                }
+
+                const { data, error } = await APP.supabase
+                    .from('clients')
+                    .insert(clientData)
+                    .select()
+                    .single();
+
+                if (error) {
+                    console.error('Supabase error:', error);
+                    throw error;
+                }
+
+                console.log('✅ Client created:', data);
+                showSuccess('Cliente creado exitosamente');
+                hideCreateClientForm();
+                
+                // Reload clients list
+                await loadClients();
+            } catch (error) {
+                console.error('❌ Error creating client:', error);
+                showError('Error al crear cliente: ' + (error.message || 'Error desconocido'));
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Guardar Cliente';
+            }
+        }
+
+        // Show create credit form (con overlay)
+        async function showCreateCreditForm() {
+            console.log('🆕 showCreateCreditForm called');
+            
+            try {
+                // Get settings
+                const { data: settingsData } = await APP.supabase
+                    .from('settings')
+                    .select('key, value')
+                    .eq('panel_id', APP.ctx.panelId);
+                
+                const settings = {};
+                if (settingsData) {
+                    settingsData.forEach(s => {
+                        try {
+                            settings[s.key] = typeof s.value === 'string' && (s.value.startsWith('{') || s.value.startsWith('['))
+                                ? JSON.parse(s.value)
+                                : s.value;
+                        } catch {
+                            settings[s.key] = s.value;
+                        }
+                    });
+                }
+                
+                // Set defaults
+                const minCuotas = settings.min_cuotas || 30;
+                const maxCuotas = settings.max_cuotas || 90;
+                const cuotaMinima = settings.cuota_minima || 5000;
+                const interesBase = settings.interes_base || 20;
+                    
+                // Get all clients and filter out those with active credits
+                const { data: allClients } = await APP.supabase
+                    .from('clients')
+                    .select('id, nombre, cedula')
+                    .eq('panel_id', APP.ctx.panelId)
+                    .order('created_at', { ascending: false });
+                
+                const { data: activeLoans } = await APP.supabase
+                    .from('prestamos')
+                    .select('cliente_id')
+                    .eq('panel_id', APP.ctx.panelId)
+                    .in('estado', ['activo', 'vencido']);
+                
+                const activeClientIds = new Set((activeLoans || []).map(l => l.cliente_id));
+                const clientsWithoutCredit = (allClients || [])
+                    .filter(c => !activeClientIds.has(c.id))
+                    .slice(0, 3);
+                
+                // Get clients with recently completed credits
+                const { data: recentlyCompleted } = await APP.supabase
+                    .from('prestamos')
+                    .select('cliente_id, clients(id, nombre, cedula), fecha_fin')
+                    .eq('panel_id', APP.ctx.panelId)
+                    .eq('estado', 'completado')
+                    .order('fecha_fin', { ascending: false })
+                    .limit(2);
+                
+                // Build suggestions HTML
+                const withoutCreditHTML = (clientsWithoutCredit || []).map(c => `
+                    <div onclick="selectClientForCredit('${c.id}', '${c.nombre.replace(/'/g, "\\'")}', '${c.cedula}')" 
+                        style="padding:12px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer;transition:all 0.2s;margin-bottom:8px;"
+                        onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">
+                        <div style="font-weight:600;color:#333;margin-bottom:2px;">${c.nombre}</div>
+                        <div style="font-size:13px;color:#666;">🆔 ${c.cedula}</div>
+                        <button type="button" style="margin-top:6px;padding:6px 12px;background:#10b981;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;">
+                            Asignar
+                        </button>
+                    </div>
+                `).join('');
+                
+                const completedHTML = (recentlyCompleted || []).map(p => `
+                    <div onclick="selectClientForCredit('${p.clients.id}', '${p.clients.nombre.replace(/'/g, "\\'")}', '${p.clients.cedula}')" 
+                        style="padding:12px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer;transition:all 0.2s;margin-bottom:8px;"
+                        onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">
+                        <div style="font-weight:600;color:#333;margin-bottom:2px;">${p.clients.nombre}</div>
+                        <div style="font-size:12px;color:#666;margin-bottom:4px;">Terminó el ${p.fecha_fin || 'N/A'}</div>
+                        <button type="button" style="padding:6px 12px;background:#f59e0b;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;">
+                            Ofrecer nuevo crédito
+                        </button>
+                    </div>
+                `).join('');
+                
+                // Crear modal con selector de cliente
+                document.body.insertAdjacentHTML('beforeend', `
+                    <div id="creditModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;">
+                        <div style="background:white;border-radius:15px;padding:20px;max-width:450px;width:100%;max-height:90vh;overflow-y:auto;">
+                            <div id="clientSelectorView">
+                                <h3 style="margin:0 0 15px;color:#333;">Agregar Crédito</h3>
+                                
+                                <!-- Search Bar -->
+                                <div style="margin-bottom:20px;">
+                                    <label style="display:block;margin-bottom:8px;font-weight:600;color:#374151;font-size:14px;">Buscar cliente</label>
+                                    <input type="text" id="clientSearchInput" placeholder="Cédula o nombre del cliente" 
+                                        style="width:100%;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:15px;">
+                                    <div id="searchResults" style="margin-top:10px;max-height:200px;overflow-y:auto;"></div>
+                                </div>
+                                
+                                <!-- Últimos 3 clientes sin crédito -->
+                                ${withoutCreditHTML ? `
+                                    <div style="margin-bottom:20px;">
+                                        <h4 class="client-section-title" style="margin:0 0 10px;font-size:14px;color:#666;font-weight:600;">Últimos 3 clientes sin crédito</h4>
+                                        ${withoutCreditHTML}
+                                    </div>
+                                ` : ''}
+                                
+                                <!-- 2 clientes recién finalizados -->
+                                ${completedHTML ? `
+                                    <div style="margin-bottom:20px;">
+                                        <h4 class="client-section-title" style="margin:0 0 10px;font-size:14px;color:#666;font-weight:600;">Clientes recién finalizados</h4>
+                                        ${completedHTML}
+                                    </div>
+                                ` : ''}
+                                
+                                <button type="button" onclick="hideCreateCreditForm()" style="width:100%;padding:12px;background:#6c757d;color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer;">
+                                    Cancelar
+                                </button>
+                            </div>
+                            
+                            <!-- Credit Form (hidden initially) -->
+                            <form id="newCreditForm" style="display:none;grid-template-columns:1fr;gap:12px;">
+                                <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+                                    <button type="button" onclick="showClientSelector()" style="background:none;border:none;font-size:20px;cursor:pointer;">←</button>
+                                    <h3 style="margin:0;color:#333;flex:1;">Crear Crédito</h3>
+                                </div>
+                                
+                                <div style="background:#f3f4f6;padding:12px;border-radius:8px;margin-bottom:10px;">
+                                    <div style="font-size:13px;color:#666;margin-bottom:2px;">Cliente seleccionado:</div>
+                                    <div id="selectedClientName" style="font-weight:600;color:#333;"></div>
+                                    <div id="selectedClientCedula" style="font-size:13px;color:#666;"></div>
+                                </div>
+                                
+                                <input type="hidden" id="creditClient" required>
+                                <div>
+                                    <label style="display:block;margin-bottom:5px;font-weight:600;color:#374151;">Monto del crédito *</label>
+                                    <input type="text" inputmode="numeric" id="creditAmount" class="form-input" required 
+                                        placeholder="Ej: 500000" 
+                                        style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;-webkit-appearance:none;-moz-appearance:textfield;">
+                                    <small style="color:#666;font-size:12px;">Mínimo: $50,000 - Múltiplo de $1,000</small>
+                                </div>
+                                <div>
+                                    <label style="display:block;margin-bottom:5px;font-weight:600;color:#374151;">Cuota diaria *</label>
+                                    <input type="text" inputmode="numeric" id="creditDailyQuota" class="form-input" required 
+                                        placeholder="Ej: ${cuotaMinima}" 
+                                        style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;-webkit-appearance:none;-moz-appearance:textfield;">
+                                    <small style="color:#666;font-size:12px;">Mínimo: $${cuotaMinima.toLocaleString()}</small>
+                                </div>
+                                <div>
+                                    <label style="display:block;margin-bottom:5px;font-weight:600;color:#374151;">Días calculados</label>
+                                    <div id="creditCalculatedDays" class="credit-calc-box" style="padding:10px;background:#e0e7ff;border-radius:8px;font-weight:bold;text-align:center;">
+                                        -
+                                    </div>
+                                    <small style="color:#666;font-size:12px;">Rango: ${minCuotas} - ${maxCuotas} días</small>
+                                </div>
+                                <div style="margin-bottom:15px;">
+                                    <label style="display:block;margin-bottom:5px;font-weight:600;color:#374151;">Total a pagar</label>
+                                    <div id="creditTotal" class="credit-total-box" style="padding:10px;background:#dcfce7;border-radius:8px;font-weight:bold;text-align:center;">
+                                        -
+                                    </div>
+                                    <small style="color:#666;font-size:12px;">Interés base: ${interesBase}%</small>
+                                </div>
+                                <div style="display:flex;gap:10px;margin-top:10px;">
+                                    <button type="submit" class="btn btn-success" style="flex:1;padding:12px;">Crear Crédito</button>
+                                    <button type="button" onclick="hideCreateCreditForm()" class="btn" style="flex:1;padding:12px;background:#6c757d;color:white;">Cancelar</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                `);
+                    
+                    // Add calculation listeners
+                    const amountInput = document.getElementById('creditAmount');
+                    const quotaInput = document.getElementById('creditDailyQuota');
+                    
+                    function calculateCredit() {
+                        // Remove non-numeric characters and convert to number
+                        const amount = Number(amountInput.value.replace(/[^\d]/g, '')) || 0;
+                        const dailyQuota = Number(quotaInput.value.replace(/[^\d]/g, '')) || 0;
+                        
+                        if (amount > 0 && dailyQuota > 0) {
+                            // Calculate base interest (for 30 days)
+                            const baseInterestRate = interesBase / 100;
+                            const totalWithBaseInterest = amount * (1 + baseInterestRate);
+                            const idealInstallment = totalWithBaseInterest / 30; // ideal for 30 days
+                            
+                            // Adjust interest if installment is lower than ideal
+                            let adjustedInterestRate = baseInterestRate;
+                            let totalToPay = totalWithBaseInterest;
+                            
+                            if (dailyQuota < idealInstallment) {
+                                // If quota is lower, increase interest proportionally
+                                adjustedInterestRate = baseInterestRate * (idealInstallment / dailyQuota);
+                                totalToPay = amount * (1 + adjustedInterestRate);
+                            }
+                            
+                            // Calculate number of days (round up)
+                            const days = Math.ceil(totalToPay / dailyQuota);
+                            
+                            // IMPORTANT: Real total is days × daily quota (rounded to installments)
+                            const realTotal = days * dailyQuota;
+                            
+                            // Display results
+                            document.getElementById('creditCalculatedDays').textContent = `${days} días`;
+                            document.getElementById('creditTotal').textContent = `$${realTotal.toLocaleString()}`;
+                            
+                            // Validate
+                            if (days < minCuotas || days > maxCuotas) {
+                                document.getElementById('creditCalculatedDays').style.background = '#fee2e2';
+                                document.getElementById('creditCalculatedDays').style.color = '#991b1b';
+                            } else {
+                                document.getElementById('creditCalculatedDays').style.background = '#e0e7ff';
+                                document.getElementById('creditCalculatedDays').style.color = '#1e3a8a';
+                            }
+                        }
+                    }
+                    
+                    amountInput.addEventListener('input', calculateCredit);
+                    quotaInput.addEventListener('input', calculateCredit);
+                    
+                document.getElementById('newCreditForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    await createCredit(settings);
+                });
+                
+                // Setup client search
+                const searchInput = document.getElementById('clientSearchInput');
+                searchInput.addEventListener('input', async (e) => {
+                    const term = e.target.value.trim();
+                    if (term.length < 2) {
+                        document.getElementById('searchResults').innerHTML = '';
+                        return;
+                    }
+                    
+                    const { data: results } = await APP.supabase
+                        .from('clients')
+                        .select('id, nombre, cedula')
+                        .eq('panel_id', APP.ctx.panelId)
+                        .or(`nombre.ilike.%${term}%,cedula.ilike.%${term}%`)
+                        .limit(5);
+                    
+                    const resultsHTML = (results || []).map(c => `
+                        <div onclick="selectClientForCredit('${c.id}', '${c.nombre.replace(/'/g, "\\'")}', '${c.cedula}')" 
+                            style="padding:10px;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;margin-bottom:6px;background:white;"
+                            onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">
+                            <div style="font-weight:600;color:#333;">${c.nombre}</div>
+                            <div style="font-size:12px;color:#666;">🆔 ${c.cedula}</div>
+                        </div>
+                    `).join('');
+                    
+                    document.getElementById('searchResults').innerHTML = resultsHTML || '<div style="padding:10px;color:#999;text-align:center;">No se encontraron resultados</div>';
+                });
+            } catch (error) {
+                console.error('Error loading credit form:', error);
+                showError('Error al cargar el formulario: ' + error.message);
+            }
+        }
+        
+        // Select client for credit
+        function selectClientForCredit(clientId, clientName, clientCedula) {
+            document.getElementById('creditClient').value = clientId;
+            document.getElementById('selectedClientName').textContent = clientName;
+            document.getElementById('selectedClientCedula').textContent = `🆔 ${clientCedula}`;
+            
+            // Hide selector, show form
+            document.getElementById('clientSelectorView').style.display = 'none';
+            document.getElementById('newCreditForm').style.display = 'grid';
+        }
+        
+        // Show client selector (back button)
+        function showClientSelector() {
+            document.getElementById('clientSelectorView').style.display = 'block';
+            document.getElementById('newCreditForm').style.display = 'none';
+        }
+        
+        // Hide create credit form
+        function hideCreateCreditForm() {
+            document.getElementById('creditModal')?.remove();
+        }
+        
+        // Create credit
+        async function createCredit(settings) {
+            const submitBtn = document.querySelector('#newCreditForm button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Creando...';
+            
+            try {
+                const clientId = document.getElementById('creditClient').value;
+                // Remove non-numeric characters and convert to number
+                const amount = Number(document.getElementById('creditAmount').value.replace(/[^\d]/g, ''));
+                const dailyQuota = Number(document.getElementById('creditDailyQuota').value.replace(/[^\d]/g, ''));
+                
+                if (!clientId) {
+                    throw new Error('Selecciona un cliente');
+                }
+                
+                if (!amount || amount < 50000) {
+                    throw new Error('El monto mínimo es $50,000');
+                }
+                
+                if (amount % 1000 !== 0) {
+                    throw new Error('El monto debe ser múltiplo de $1,000');
+                }
+                
+                const minCuotas = settings.min_cuotas || 30;
+                const maxCuotas = settings.max_cuotas || 90;
+                const cuotaMinima = settings.cuota_minima || 5000;
+                const interesBase = settings.interes_base || 20;
+                
+                if (dailyQuota < cuotaMinima) {
+                    throw new Error(`La cuota mínima es $${cuotaMinima.toLocaleString()}`);
+                }
+                
+                // Calculate with progressive interest (same logic as main panel)
+                const baseInterestRate = interesBase / 100;
+                const totalWithBaseInterest = amount * (1 + baseInterestRate);
+                const idealInstallment = totalWithBaseInterest / 30; // ideal for 30 days
+                
+                let adjustedInterestRate = baseInterestRate;
+                let totalToPay = totalWithBaseInterest;
+                
+                if (dailyQuota < idealInstallment) {
+                    // If quota is lower, increase interest proportionally
+                    adjustedInterestRate = baseInterestRate * (idealInstallment / dailyQuota);
+                    totalToPay = amount * (1 + adjustedInterestRate);
+                }
+                
+                const days = Math.ceil(totalToPay / dailyQuota);
+                
+                if (days < minCuotas) {
+                    throw new Error(`El crédito debe tener mínimo ${minCuotas} días`);
+                }
+                
+                if (days > maxCuotas) {
+                    throw new Error(`El crédito no puede superar ${maxCuotas} días`);
+                }
+                
+                // Calculate real total (days × daily quota)
+                const total = days * dailyQuota;
+                
+                console.log('Creating credit:', { clientId, amount, dailyQuota, days, total, adjustedInterestRate });
+                
+                // Capture GPS location silently
+                let location = null;
+                try {
+                    location = await getCurrentLocation();
+                    console.log('📍 GPS capturado en crédito:', location);
+                } catch (gpsError) {
+                    console.warn('⚠️ No se pudo capturar GPS en crédito:', gpsError);
+                }
+
+                // Create loan
+                const loanData = {
+                    panel_id: APP.ctx.panelId,
+                    cliente_id: clientId,
+                    cobrador_id: APP.ctx.collectorId,
+                    monto_prestado: amount,
+                    cuota_diaria: dailyQuota,
+                    total_dias: days,
+                    fecha_inicio: getLocalToday(),
+                    estado: 'activo'
+                };
+
+                // Add GPS data if available
+                if (location) {
+                    loanData.lat = location.latitude;
+                    loanData.lng = location.longitude;
+                }
+
+                const { data, error } = await APP.supabase
+                    .from('prestamos')
+                    .insert(loanData)
+                    .select()
+                    .single();
+                
+                if (error) {
+                    console.error('Supabase error:', error);
+                    throw error;
+                }
+                
+                console.log('✅ Credit created:', data);
+                showSuccess('Crédito creado exitosamente');
+                hideCreateCreditForm();
+                
+                // Reload credits list
+                await loadCredits();
+            } catch (error) {
+                console.error('❌ Error creating credit:', error);
+                showError('Error al crear crédito: ' + (error.message || 'Error desconocido'));
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Crear Crédito';
+            }
+        }
+
+        // Setup offline handling
+        function setupOfflineHandling() {
+            console.log('🔧 Configurando manejo offline con IndexedDB...');
+            
+            // 🆕 Use sync.js connection listeners
+            setupConnectionListeners();
+            
+            // Listen for messages from Service Worker
+            navigator.serviceWorker?.addEventListener('message', (event) => {
+                if (event.data.type === 'SYNC_OFFLINE_DATA') {
+                    console.log('📬 Service Worker requests sync');
+                    syncOfflineData();
+                }
+            });
+
+            // Update initial status
+            updateConnectionStatus();
+            
+            // Enable Service Worker for offline caching
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js')
+                    .then(registration => {
+                        console.log('✅ Service Worker registered:', registration);
+                    })
+                    .catch(error => {
+                        console.warn('⚠️ Service Worker registration failed:', error);
+                    });
+            }
+        }
+
+        // 🆕 Update connection status (usa IndexedDB ahora)
+        async function updateConnectionStatus() {
+            // Get pending count from IndexedDB
+            const pendingCount = await countOfflinePending();
+
+            // Update header badge if exists
+            const badge = document.getElementById('offlineBadge');
+            if (badge) {
+                if (pendingCount > 0) {
+                    badge.textContent = pendingCount;
+                    badge.style.display = 'inline-block';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+
+            // Show toast if offline
+            if (!APP.isOnline && pendingCount > 0) {
+                console.log(`📦 ${pendingCount} items pendientes de sincronizar`);
+            }
+        }
+
+
+        // 🆕 syncOfflineData() ahora está en sync.js - ya no se necesita aquí
+
+        // Show login
+        function showLogin() {
+            document.body.innerHTML = `
+                <div class="container">
+                    <div class="header">
+                        <h1>Cobrador</h1>
+                        <p>Inicia sesión para continuar</p>
+                    </div>
+                    <div class="content">
+                        <form id="loginForm">
+                            <div class="form-group">
+                                <label class="form-label" for="email">Email</label>
+                                <input type="email" id="email" class="form-input" required value="jhonalexander@gmail.com">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="password">Contraseña</label>
+                                <input type="password" id="password" class="form-input" required>
+                            </div>
+                            <div id="loginError" style="display: none; color: #f87171; margin: 10px 0; padding: 10px; background: rgba(248, 113, 113, 0.1); border-radius: 8px;"></div>
+                            <button type="submit" class="btn btn-primary" style="width: 100%;" id="loginBtn">Iniciar Sesión</button>
+                        </form>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('loginForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                const loginBtn = document.getElementById('loginBtn');
+                const loginError = document.getElementById('loginError');
+
+                loginBtn.disabled = true;
+                loginBtn.textContent = 'Iniciando...';
+                loginError.style.display = 'none';
+
+                try {
+                    console.log('Attempting login with:', email);
+                    console.log('Supabase client:', APP.supabase ? 'initialized' : 'NOT initialized');
+                    
+                    const { data, error } = await APP.supabase.auth.signInWithPassword({
+                        email,
+                        password
+                    });
+
+                    console.log('Login response:', { data, error });
+
+                    if (error) throw error;
+
+                    console.log('Login successful, reloading...');
+                    // Reload page to initialize app
+                    location.reload();
+                } catch (error) {
+                    console.error('Login error:', error);
+                    loginError.textContent = error.message || 'Error al iniciar sesión. Verifica tus credenciales.';
+                    loginError.style.display = 'block';
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = 'Iniciar Sesión';
+                }
+            });
+        }
+
+        // Logout
+        async function logout() {
+            try {
+                console.log('Logging out...');
+                const { error } = await APP.supabase.auth.signOut();
+                if (error) {
+                    console.error('Logout error:', error);
+                    throw error;
+                }
+                console.log('Logout successful, reloading...');
+                // Clear app context
+                APP.ctx = null;
+                // Reload page
+                window.location.href = window.location.pathname;
+            } catch (error) {
+                console.error('Logout error:', error);
+                alert('Error al cerrar sesión: ' + error.message);
+            }
+        }
+
+        // Show error
+        function showError(message) {
+            console.error('Error:', message);
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            errorDiv.style.cssText = 'padding: 15px; margin: 15px 0; background: #fee; border: 1px solid #fcc; border-radius: 8px; color: #c33;';
+            
+            const content = document.querySelector('.content');
+            if (content) {
+                content.insertBefore(errorDiv, content.firstChild);
+            } else {
+                document.body.appendChild(errorDiv);
+            }
+            setTimeout(() => errorDiv.remove(), 5000);
+        }
+
+        // Show success
+        function showSuccess(message) {
+            console.log('Success:', message);
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success';
+            successDiv.textContent = message;
+            successDiv.style.cssText = 'padding: 15px; margin: 15px 0; background: #efe; border: 1px solid #cfc; border-radius: 8px; color: #3c3;';
+            
+            const content = document.querySelector('.content');
+            if (content) {
+                content.insertBefore(successDiv, content.firstChild);
+            } else {
+                document.body.appendChild(successDiv);
+            }
+            setTimeout(() => successDiv.remove(), 3000);
+        }
+
+        // ============ NEW NAVIGATION SYSTEM ============
+        
+        // Toggle theme
+        function toggleTheme() {
+            const body = document.body;
+            const isDark = body.classList.contains('dark-mode');
+            
+            if (isDark) {
+                body.classList.remove('dark-mode');
+                body.classList.add('light-mode');
+                localStorage.setItem('theme', 'light');
+            } else {
+                body.classList.remove('light-mode');
+                body.classList.add('dark-mode');
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+        
+        // Go to home
+        function goHome() {
+            document.getElementById('homeGrid').style.display = 'grid';
+            document.getElementById('viewsContainer').style.display = 'none';
+            
+            // Hide all views
+            document.querySelectorAll('.view').forEach(view => {
+                view.classList.remove('active');
+            });
+        }
+        
+        // Open view
+        function openView(viewName) {
+            document.getElementById('homeGrid').style.display = 'none';
+            document.getElementById('viewsContainer').style.display = 'block';
+            
+            // Hide all views
+            document.querySelectorAll('.view').forEach(view => {
+                view.classList.remove('active');
+            });
+            
+            // Show selected view
+            const targetView = document.getElementById(viewName);
+            if (targetView) {
+                targetView.classList.add('active');
+                loadViewData(viewName);
+            }
+        }
+        
+        // Setup new navigation
+        function setupNewNavigation() {
+            // Load saved theme
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.body.classList.add(savedTheme + '-mode');
+            
+            // Theme toggle button
+            const themeToggle = document.getElementById('themeToggle');
+            if (themeToggle) {
+                themeToggle.addEventListener('click', toggleTheme);
+            }
+            
+            // Home menu cards
+            document.querySelectorAll('.menu-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const view = card.dataset.view;
+                    if (view) openView(view);
+                });
+            });
+        }
+        
+        // Initialize app when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            setupNewNavigation();
+            checkGpsOnStart(); // Check GPS before init
+        });
+    </script>
+</body>
+</html>
+
+
+

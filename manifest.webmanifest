@@ -1,0 +1,12 @@
+{
+  "name": "Cobrador App",
+  "short_name": "Cobrador",
+  "description": "Aplicación para cobradores",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait",
+  "icons": []
+}
+

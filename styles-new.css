@@ -1,0 +1,980 @@
+/* ============================================
+   COBRADOR APP - MODERN UI STYLES
+   ============================================ */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* ============ LIGHT/DARK MODE ============ */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+    transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* LIGHT MODE */
+body.light-mode {
+    background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
+    color: #1a202c;
+}
+
+body.light-mode .header {
+    background: rgba(255, 255, 255, 0.95);
+    color: #1a202c;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+body.light-mode .menu-card {
+    background: rgba(255, 255, 255, 0.95);
+    border: 2px solid #e2e8f0;
+    color: #1a202c;
+}
+
+body.light-mode .menu-card:hover {
+    border-color: #3b82f6;
+    box-shadow: 0 8px 30px rgba(59, 130, 246, 0.2);
+}
+
+body.light-mode .view-container {
+    background: rgba(255, 255, 255, 0.98);
+    color: #1a202c;
+}
+
+body.light-mode .modal-content {
+    background: white;
+    color: #1a202c;
+}
+
+/* DARK MODE */
+body.dark-mode {
+    background: linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e293b 100%);
+    color: #e2e8f0;
+}
+
+body.dark-mode .header {
+    background: rgba(15, 23, 42, 0.95);
+    color: #e2e8f0;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), 0 0 30px rgba(0, 217, 255, 0.15);
+    border: 1px solid rgba(0, 217, 255, 0.3);
+}
+
+body.dark-mode .menu-card {
+    background: rgba(15, 23, 42, 0.9);
+    border: 2px solid #00d9ff;
+    color: #e2e8f0;
+    box-shadow: 0 0 25px rgba(0, 217, 255, 0.3);
+    transition: all 0.4s ease;
+}
+
+body.dark-mode .menu-card:hover {
+    border-color: #00ff88;
+    box-shadow: 0 0 35px rgba(0, 255, 136, 0.5), 0 0 60px rgba(0, 255, 136, 0.2);
+    background: rgba(15, 23, 42, 0.98);
+    transform: translateY(-5px) scale(1.02);
+}
+
+body.dark-mode .menu-card-icon {
+    color: #00d9ff;
+    text-shadow: 0 0 15px rgba(0, 217, 255, 0.6);
+    transition: all 0.4s ease;
+}
+
+body.dark-mode .menu-card:hover .menu-card-icon {
+    color: #00ff88;
+    text-shadow: 0 0 20px rgba(0, 255, 136, 0.8);
+}
+
+body.dark-mode .menu-card-title {
+    transition: all 0.3s ease;
+}
+
+body.dark-mode .menu-card:hover .menu-card-title {
+    color: #00ff88;
+    text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+}
+
+body.dark-mode .menu-card-subtitle {
+    color: rgba(226, 232, 240, 0.6);
+}
+
+body.dark-mode .menu-card:hover .menu-card-subtitle {
+    color: rgba(0, 255, 136, 0.8);
+}
+
+body.dark-mode .view-container {
+    background: rgba(15, 23, 42, 0.98);
+    color: #e2e8f0;
+    border: 2px solid #00d9ff;
+    box-shadow: 0 0 30px rgba(0, 217, 255, 0.3);
+}
+
+body.dark-mode .modal-content,
+body.dark-mode [id*="Modal"],
+body.dark-mode [id*="Form"][style*="display"],
+body.dark-mode [style*="position:fixed"][style*="z-index"] > div {
+    background: rgba(15, 23, 42, 0.98) !important;
+    color: #e2e8f0 !important;
+    border: 2px solid #00d9ff !important;
+    box-shadow: 0 0 40px rgba(0, 217, 255, 0.4) !important;
+}
+
+body.dark-mode .list-container {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+body.dark-mode .stat-card {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(0, 217, 255, 0.4);
+    color: #e2e8f0;
+    box-shadow: 0 0 15px rgba(0, 217, 255, 0.2);
+}
+
+body.dark-mode .stat-card:hover {
+    border-color: rgba(0, 255, 136, 0.6);
+    box-shadow: 0 0 25px rgba(0, 255, 136, 0.3);
+}
+
+body.dark-mode input, 
+body.dark-mode textarea, 
+body.dark-mode select {
+    background: rgba(15, 23, 42, 0.8) !important;
+    color: #e2e8f0 !important;
+    border: 1px solid #00d9ff !important;
+    box-shadow: 0 0 10px rgba(0, 217, 255, 0.2) !important;
+}
+
+/* Labels y títulos en modales */
+body.dark-mode label,
+body.dark-mode h3,
+body.dark-mode h4 {
+    color: #e2e8f0 !important;
+}
+
+/* Divs con estilos inline en modales */
+body.dark-mode [style*="color: #333"],
+body.dark-mode [style*="color:#333"] {
+    color: #e2e8f0 !important;
+}
+
+body.dark-mode [style*="color: #666"],
+body.dark-mode [style*="color:#666"] {
+    color: rgba(226, 232, 240, 0.7) !important;
+}
+
+body.dark-mode [style*="color: #374151"],
+body.dark-mode [style*="color:#374151"] {
+    color: #e2e8f0 !important;
+}
+
+/* ============ LOGIN SCREEN (ALWAYS DARK) ============ */
+#loginScreen {
+    background: linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e293b 100%) !important;
+    color: #e2e8f0 !important;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#loginScreen .login-container {
+    background: rgba(15, 23, 42, 0.95) !important;
+    border: 2px solid #00d9ff !important;
+    box-shadow: 0 0 40px rgba(0, 217, 255, 0.5) !important;
+    border-radius: 20px;
+    padding: 40px;
+    max-width: 400px;
+    width: 90%;
+}
+
+#loginScreen h2 {
+    color: #00d9ff !important;
+    text-shadow: 0 0 20px rgba(0, 217, 255, 0.6);
+    text-align: center;
+    margin-bottom: 30px;
+    font-size: 2rem;
+}
+
+#loginScreen input {
+    background: rgba(15, 23, 42, 0.8) !important;
+    border: 1px solid #00d9ff !important;
+    color: #e2e8f0 !important;
+    box-shadow: 0 0 15px rgba(0, 217, 255, 0.3) !important;
+    padding: 12px;
+    border-radius: 10px;
+    width: 100%;
+    margin-bottom: 15px;
+}
+
+#loginScreen input::placeholder {
+    color: rgba(226, 232, 240, 0.5) !important;
+}
+
+#loginScreen input:focus {
+    border-color: #00ff88 !important;
+    box-shadow: 0 0 25px rgba(0, 255, 136, 0.5) !important;
+    outline: none;
+}
+
+#loginScreen button {
+    background: rgba(0, 217, 255, 0.3) !important;
+    border: 2px solid #00d9ff !important;
+    color: #00d9ff !important;
+    box-shadow: 0 0 20px rgba(0, 217, 255, 0.4) !important;
+    padding: 12px;
+    border-radius: 10px;
+    width: 100%;
+    font-weight: bold;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+#loginScreen button:hover {
+    background: rgba(0, 255, 136, 0.3) !important;
+    border-color: #00ff88 !important;
+    color: #00ff88 !important;
+    box-shadow: 0 0 30px rgba(0, 255, 136, 0.6) !important;
+    transform: translateY(-2px);
+}
+
+#loginScreen .error {
+    background: rgba(239, 68, 68, 0.2) !important;
+    border: 1px solid #ef4444 !important;
+    color: #ff8888 !important;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.3) !important;
+    padding: 12px;
+    border-radius: 8px;
+    margin-top: 15px;
+    text-align: center;
+}
+
+/* ============ CONTAINER ============ */
+.container {
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 15px;
+    min-height: 100vh;
+}
+
+/* ============ HEADER ============ */
+.header {
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 15px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.header h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.theme-toggle {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.theme-toggle:hover {
+    transform: rotate(180deg);
+}
+
+.status-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-left: 8px;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.status-online { background: #00ff88; box-shadow: 0 0 10px #00ff88; }
+.status-offline { background: #ff4444; box-shadow: 0 0 10px #ff4444; }
+
+#logoutBtn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+body.light-mode #logoutBtn {
+    background: #ef4444;
+    color: white;
+}
+
+body.dark-mode #logoutBtn {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ff4444;
+    border: 1px solid #ff4444;
+    box-shadow: 0 0 15px rgba(255, 68, 68, 0.3);
+}
+
+body.dark-mode #logoutBtn:hover {
+    background: rgba(239, 68, 68, 0.9);
+    color: white;
+    box-shadow: 0 0 25px rgba(255, 68, 68, 0.6);
+}
+
+#logoutBtn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+body.dark-mode .theme-toggle {
+    color: #00d9ff;
+    text-shadow: 0 0 10px rgba(0, 217, 255, 0.8);
+}
+
+body.dark-mode .theme-toggle:hover {
+    color: #00ff88;
+    text-shadow: 0 0 15px rgba(0, 255, 136, 0.8);
+}
+
+/* ============ HOME MENU GRID ============ */
+.home-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.menu-card {
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 30px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.menu-card.full-width {
+    grid-column: 1 / -1;
+}
+
+.menu-card-icon {
+    font-size: 3rem;
+    margin-bottom: 10px;
+    display: block;
+}
+
+.menu-card-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.menu-card-subtitle {
+    font-size: 0.85rem;
+    opacity: 0.7;
+}
+
+.menu-card:active {
+    transform: scale(0.95);
+}
+
+/* ============ VIEW CONTAINER ============ */
+.view-container {
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 20px;
+    min-height: 70vh;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.view-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid;
+}
+
+body.light-mode .view-header {
+    border-color: #e2e8f0;
+}
+
+body.dark-mode .view-header {
+    border-color: rgba(0, 217, 255, 0.4);
+    box-shadow: 0 2px 15px rgba(0, 217, 255, 0.2);
+}
+
+body.dark-mode .view-title {
+    color: #00d9ff;
+    text-shadow: 0 0 15px rgba(0, 217, 255, 0.5);
+}
+
+.view-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.back-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 5px 10px;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+body.light-mode .back-btn {
+    color: #3b82f6;
+}
+
+body.dark-mode .back-btn {
+    color: #00d9ff;
+    text-shadow: 0 0 15px rgba(0, 217, 255, 0.6);
+}
+
+body.dark-mode .back-btn:hover {
+    color: #00ff88;
+    text-shadow: 0 0 20px rgba(0, 255, 136, 0.8);
+}
+
+.back-btn:hover {
+    transform: scale(1.1);
+}
+
+/* ============ STATS & CARDS ============ */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.stat-card {
+    backdrop-filter: blur(10px);
+    padding: 20px;
+    border-radius: 15px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-3px);
+}
+
+.list-container {
+    border-radius: 15px;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+}
+
+.list-header {
+    padding: 15px 20px;
+    font-weight: 600;
+    border-bottom: 1px solid;
+}
+
+body.light-mode .list-header {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+    color: #374151;
+}
+
+body.dark-mode .list-header {
+    display: none;
+}
+
+/* ============ BUTTONS ============ */
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.95rem;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+}
+
+.btn-primary {
+    background: #3b82f6;
+    color: white;
+}
+
+.btn-success {
+    background: #10b981;
+    color: white;
+}
+
+.btn-danger {
+    background: #ef4444;
+    color: white;
+}
+
+body.dark-mode .btn {
+    border: 1px solid rgba(0, 217, 255, 0.4);
+    box-shadow: 0 0 15px rgba(0, 217, 255, 0.3);
+}
+
+body.dark-mode .btn:hover {
+    border-color: rgba(0, 255, 136, 0.6);
+    box-shadow: 0 0 25px rgba(0, 255, 136, 0.5);
+}
+
+body.dark-mode .btn-primary {
+    background: rgba(59, 130, 246, 0.3);
+    border-color: #3b82f6;
+}
+
+body.dark-mode .btn-success {
+    background: rgba(16, 185, 129, 0.3);
+    border-color: #10b981;
+}
+
+body.dark-mode .btn-danger {
+    background: rgba(239, 68, 68, 0.3);
+    border-color: #ef4444;
+}
+
+/* ============ FORMS & INPUTS ============ */
+input, textarea, select {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    font-size: 15px;
+    transition: all 0.3s ease;
+}
+
+input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+body.dark-mode input:focus, 
+body.dark-mode textarea:focus, 
+body.dark-mode select:focus {
+    border-color: #00ff88;
+    box-shadow: 0 0 20px rgba(0, 255, 136, 0.4), 0 0 0 3px rgba(0, 255, 136, 0.1);
+}
+
+/* ============ MODAL ============ */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 20px;
+    backdrop-filter: blur(5px);
+}
+
+.modal-content {
+    border-radius: 20px;
+    padding: 25px;
+    max-width: 500px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+/* ============ UTILITIES ============ */
+.loading, .empty-state, .error {
+    padding: 40px 20px;
+    text-align: center;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* ============ OFFLINE BANNER ============ */
+.offline-banner {
+    position: fixed;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #ff4444;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-weight: 600;
+    z-index: 9999;
+    box-shadow: 0 4px 15px rgba(255, 68, 68, 0.3);
+}
+
+body.dark-mode .offline-banner {
+    background: rgba(255, 68, 68, 0.9);
+    border: 1px solid #ff4444;
+    box-shadow: 0 0 30px rgba(255, 68, 68, 0.6);
+}
+
+/* ============ FLOATING CARDS (DARK MODE) ============ */
+/* Láminas flotantes para cuotas, clientes, créditos, pagos */
+body.dark-mode .list-item,
+body.dark-mode #pendingQuotasList > div,
+body.dark-mode #clientsList > div,
+body.dark-mode #creditsList > div,
+body.dark-mode #paymentsList > div {
+    background: rgba(15, 23, 42, 0.9) !important;
+    border: 2px solid #00d9ff !important;
+    box-shadow: 0 0 25px rgba(0, 217, 255, 0.3) !important;
+    margin-bottom: 15px !important;
+    border-radius: 12px !important;
+    transition: all 0.3s ease !important;
+}
+
+body.dark-mode .list-item:hover,
+body.dark-mode #pendingQuotasList > div:hover,
+body.dark-mode #clientsList > div:hover,
+body.dark-mode #creditsList > div:hover,
+body.dark-mode #paymentsList > div:hover {
+    border-color: #00ff88 !important;
+    box-shadow: 0 0 35px rgba(0, 255, 136, 0.5), 0 0 60px rgba(0, 255, 136, 0.2) !important;
+    transform: translateY(-3px) !important;
+}
+
+/* Quitar bordes internos en modo oscuro */
+body.dark-mode .list-item {
+    border-bottom: none !important;
+}
+
+/* Divs internos que se ven afectados */
+body.dark-mode #pendingQuotasList .loading,
+body.dark-mode #pendingQuotasList .error,
+body.dark-mode #pendingQuotasList .empty-state,
+body.dark-mode #clientsList .loading,
+body.dark-mode #clientsList .error,
+body.dark-mode #clientsList .empty-state,
+body.dark-mode #creditsList .loading,
+body.dark-mode #creditsList .error,
+body.dark-mode #creditsList .empty-state,
+body.dark-mode #paymentsList .loading,
+body.dark-mode #paymentsList .error,
+body.dark-mode #paymentsList .empty-state {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Textos dentro de las tarjetas en modo oscuro */
+body.dark-mode #pendingQuotasList > div *,
+body.dark-mode #clientsList > div *,
+body.dark-mode #creditsList > div *,
+body.dark-mode #paymentsList > div * {
+    color: inherit;
+}
+
+/* Colores específicos de estado se mantienen */
+body.dark-mode #pendingQuotasList > div [style*="color: #333"],
+body.dark-mode #clientsList > div [style*="color: #333"],
+body.dark-mode #creditsList > div [style*="color: #333"],
+body.dark-mode #paymentsList > div [style*="color: #333"] {
+    color: #e2e8f0 !important;
+}
+
+body.dark-mode #pendingQuotasList > div [style*="color: #666"],
+body.dark-mode #clientsList > div [style*="color: #666"],
+body.dark-mode #creditsList > div [style*="color: #666"],
+body.dark-mode #paymentsList > div [style*="color: #666"] {
+    color: rgba(226, 232, 240, 0.7) !important;
+}
+
+/* Efecto glow en los títulos al hacer hover */
+body.dark-mode #pendingQuotasList > div:hover [style*="font-weight: bold"],
+body.dark-mode #clientsList > div:hover h4,
+body.dark-mode #creditsList > div:hover h4,
+body.dark-mode #paymentsList > div:hover h4 {
+    color: #00ff88 !important;
+    text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+}
+
+/* Paginación en modo oscuro */
+body.dark-mode [id^="pagination"] {
+    color: #e2e8f0;
+}
+
+body.dark-mode [id^="pagination"] button {
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid #00d9ff;
+    color: #00d9ff;
+    box-shadow: 0 0 15px rgba(0, 217, 255, 0.3);
+}
+
+body.dark-mode [id^="pagination"] button:not(:disabled):hover {
+    border-color: #00ff88;
+    color: #00ff88;
+    box-shadow: 0 0 25px rgba(0, 255, 136, 0.5);
+}
+
+body.dark-mode [id^="pagination"] button:disabled {
+    opacity: 0.3;
+    border-color: rgba(0, 217, 255, 0.2);
+    color: rgba(0, 217, 255, 0.3);
+}
+
+/* Inputs de búsqueda en las vistas */
+body.dark-mode [id^="search"] {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid #00d9ff;
+    color: #e2e8f0;
+    box-shadow: 0 0 15px rgba(0, 217, 255, 0.2);
+}
+
+body.dark-mode [id^="search"]::placeholder {
+    color: rgba(226, 232, 240, 0.5);
+}
+
+body.dark-mode [id^="search"]:focus {
+    border-color: #00ff88;
+    box-shadow: 0 0 25px rgba(0, 255, 136, 0.4);
+}
+
+/* ============ MODALES DINÁMICOS ============ */
+
+/* Contenedor principal de TODOS los modales con borde neón (SOLO modo oscuro) */
+body.dark-mode #clientModal > div:first-child,
+body.dark-mode #creditModal > div:first-child,
+body.dark-mode #paymentModal > div:first-child,
+body.dark-mode #collectModal > div:first-child {
+    background: rgba(15, 23, 42, 0.95) !important;
+    border: 2px solid #00d9ff !important;
+    box-shadow: 0 0 40px rgba(0, 217, 255, 0.4) !important;
+    border-radius: 20px !important;
+}
+
+/* Asegurar que NO haya recuadros internos adicionales en modo oscuro */
+body.dark-mode #clientModal h3,
+body.dark-mode #creditModal h3,
+body.dark-mode #clientModal form,
+body.dark-mode #creditModal form,
+body.dark-mode #clientModal form > div,
+body.dark-mode #creditModal form > div {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Estilos para el resumen calculado en "Recoger Crédito" (modo oscuro) */
+body.dark-mode .collect-summary {
+    background: rgba(30, 41, 59, 0.6) !important;
+    border: 1px solid rgba(0, 217, 255, 0.3) !important;
+}
+
+body.dark-mode .collect-label {
+    color: #e2e8f0 !important;
+}
+
+body.dark-mode .collect-value {
+    color: #e2e8f0 !important;
+}
+
+body.dark-mode #collectTotal {
+    color: #00ff88 !important;
+}
+
+/* Estilos para "Crear Nuevo Crédito" - Días calculados y Total (modo oscuro) */
+body.dark-mode .credit-calc-box {
+    background: rgba(59, 130, 246, 0.2) !important; /* Azul suave */
+    border: 1px solid rgba(59, 130, 246, 0.4) !important;
+    color: #93c5fd !important; /* Azul claro */
+}
+
+body.dark-mode .credit-total-box {
+    background: rgba(16, 185, 129, 0.2) !important; /* Verde suave */
+    border: 1px solid rgba(16, 185, 129, 0.4) !important;
+    color: #00ff88 !important; /* Verde neón */
+}
+
+/* Estilos para títulos de secciones en selector de clientes (modo oscuro) */
+body.dark-mode .client-section-title {
+    color: #94a3b8 !important; /* Gris claro visible */
+}
+
+/* Dark mode for credit modal */
+body.dark-mode #creditModal > div {
+    background: #1e293b !important;
+}
+
+body.dark-mode #creditModal h3,
+body.dark-mode #creditModal h4 {
+    color: #e2e8f0 !important;
+}
+
+body.dark-mode #creditModal label {
+    color: #cbd5e1 !important;
+}
+
+body.dark-mode #creditModal input {
+    background: #334155 !important;
+    border-color: #475569 !important;
+    color: #e2e8f0 !important;
+}
+
+body.dark-mode #creditModal input::placeholder {
+    color: #64748b !important;
+}
+
+/* Dark mode for client cards in modal */
+body.dark-mode #creditModal [onclick*="selectClientForCredit"] {
+    background: #334155 !important;
+    border-color: #475569 !important;
+}
+
+body.dark-mode #creditModal [onclick*="selectClientForCredit"]:hover {
+    background: #475569 !important;
+}
+
+body.dark-mode #creditModal [onclick*="selectClientForCredit"] > div:first-child {
+    color: #e2e8f0 !important;
+}
+
+body.dark-mode #creditModal [onclick*="selectClientForCredit"] > div:not(:first-child) {
+    color: #94a3b8 !important;
+}
+
+/* Dark mode for search results */
+body.dark-mode #searchResults > div {
+    background: #334155 !important;
+    border-color: #475569 !important;
+}
+
+body.dark-mode #searchResults > div:hover {
+    background: #475569 !important;
+}
+
+body.dark-mode #searchResults > div > div:first-child {
+    color: #e2e8f0 !important;
+}
+
+body.dark-mode #searchResults > div > div:last-child {
+    color: #94a3b8 !important;
+}
+
+/* Overlay de modales (mantener desenfoque original) */
+body.dark-mode .modal-overlay,
+body.dark-mode [style*="position:fixed"][style*="background: rgba(0,0,0"],
+body.dark-mode [style*="position:fixed"][style*="background:rgba(0,0,0"] {
+    background: rgba(0, 0, 0, 0.85) !important;
+}
+
+/* Títulos en modales con efecto neón */
+body.dark-mode [id*="Form"] h3,
+body.dark-mode [id*="Modal"] h3,
+body.dark-mode [style*="position:fixed"] h3 {
+    color: #00d9ff !important;
+    text-shadow: 0 0 15px rgba(0, 217, 255, 0.5);
+}
+
+/* Botones dentro de modales */
+body.dark-mode [id*="Form"] button,
+body.dark-mode [id*="Modal"] button {
+    border: 1px solid #00d9ff !important;
+    box-shadow: 0 0 15px rgba(0, 217, 255, 0.3) !important;
+}
+
+body.dark-mode [id*="Form"] button:hover,
+body.dark-mode [id*="Modal"] button:hover {
+    border-color: #00ff88 !important;
+    box-shadow: 0 0 25px rgba(0, 255, 136, 0.5) !important;
+}
+
+/* Modal de éxito (Recoger Crédito) */
+body.dark-mode #successModal {
+    background: rgba(15, 23, 42, 0.98) !important;
+    border: 2px solid #00ff88 !important;
+    box-shadow: 0 0 40px rgba(0, 255, 136, 0.6) !important;
+    color: #e2e8f0 !important;
+}
+
+body.dark-mode #successModal h3 {
+    color: #00ff88 !important;
+    text-shadow: 0 0 20px rgba(0, 255, 136, 0.6);
+}
+
+body.dark-mode #successModal [style*="color: #10b981"],
+body.dark-mode #successModal [style*="color:#10b981"] {
+    color: #00ff88 !important;
+    text-shadow: 0 0 10px rgba(0, 255, 136, 0.4);
+}
+
+/* Divs informativos en modales */
+body.dark-mode [style*="background: #efe"],
+body.dark-mode [style*="background:#efe"] {
+    background: rgba(16, 185, 129, 0.2) !important;
+    border-color: #00ff88 !important;
+    color: #00ff88 !important;
+}
+
+body.dark-mode [style*="background: #fee"],
+body.dark-mode [style*="background:#fee"] {
+    background: rgba(239, 68, 68, 0.2) !important;
+    border-color: #ff4444 !important;
+    color: #ff8888 !important;
+}
+
+/* ============ RESPONSIVE ============ */
+@media (max-width: 480px) {
+    .header h1 {
+        font-size: 1.2rem;
+    }
+    
+    .menu-card {
+        padding: 25px 15px;
+    }
+    
+    .menu-card-icon {
+        font-size: 2.5rem;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
