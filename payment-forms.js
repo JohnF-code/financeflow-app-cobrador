@@ -404,9 +404,10 @@ async function registerPaymentForLoan(loanId, clientId, amount) {
                 
                 await updateConnectionStatus();
                 
-                showSuccess('💾 Pago guardado offline - se sincronizará cuando haya conexión');
-                alert('✅ Pago guardado offline\ntemp_id: ' + temp_id + '\n\nSe sincronizará al volver online');
                 closePaymentModal();
+                
+                // Solo 1 mensaje
+                showSuccess(`💾 Pago guardado offline\ntemp_id: ${temp_id.substring(0, 30)}...\n\nSe sincronizará cuando haya conexión`);
                 
                 // Recargar vista (mostrará cache actualizado)
                 if (typeof loadPendingQuotas === 'function') {
