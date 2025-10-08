@@ -125,7 +125,7 @@ async function showCollectCreditForm(loanId) {
             const { data: settingsData } = await APP.supabase
                 .from('settings')
                 .select('*')
-                .eq('panel_id', APP.ctx.panelId)
+                .eq('panel_id', APP.collectorContext.panelId)
                 .single();
             settings = settingsData;
         } else {
@@ -310,7 +310,7 @@ async function registerPaymentForLoan(loanId, clientId, amount) {
     try {
         // Generate idempotency key to prevent duplicates
         const timestamp = Date.now();
-        const idempotencyKey = `${APP.ctx.collectorId}-${loanId}-${timestamp}`;
+        const idempotencyKey = `${APP.collectorContext.collectorId}-${loanId}-${timestamp}`;
         
         // Capture GPS location silently
         let location = null;
@@ -322,10 +322,10 @@ async function registerPaymentForLoan(loanId, clientId, amount) {
         }
 
         const paymentData = {
-            panel_id: APP.ctx.panelId,
+            panel_id: APP.collectorContext.panelId,
             cliente_id: clientId,
             prestamo_id: loanId,
-            cobrador_id: APP.ctx.collectorId,
+            cobrador_id: APP.collectorContext.collectorId,
             monto: amount,
             fecha_pago: getLocalToday(),
             hora_pago: new Date().toTimeString().split(' ')[0],
@@ -347,35 +347,35 @@ async function registerPaymentForLoan(loanId, clientId, amount) {
             const cachedLoan = cachedLoans?.find(l => l.id === loanId);
             
             if (!cachedLoan) {
-                showError('⚠️ No hay datos del préstamo en cache');
-                btn.disabled = false;
-                btn.textContent = 'Registrar';
-                return;
+                console.warn('⚠️ No hay datos en cache - usando modo emergencia');
+                // 🆕 MODO EMERGENCIA: permitir pago sin validación
+                // El monto y el préstamo se guardarán para sincronizar después
+                console.log('🚨 Modo emergencia activado - guardando pago sin validación');
+            } else {
+                // Validar que el monto no exceda el saldo
+                if (amount > cachedLoan.saldo_total_pendiente) {
+                    showError(`⚠️ El monto ($${amount.toLocaleString()}) excede el saldo pendiente ($${cachedLoan.saldo_total_pendiente.toLocaleString()})`);
+                    btn.disabled = false;
+                    btn.textContent = 'Registrar';
+                    return;
+                }
+                
+                // Agregar metadata del cache
+                paymentData.cache_saldo_antes = cachedLoan.saldo_total_pendiente;
+                paymentData.cache_timestamp = cachedLoan.ultima_actualizacion;
+                
+                // 🆕 Actualizar saldo en cache (actualización optimista)
+                cachedLoan.saldo_total_pendiente -= amount;
+                cachedLoan.ultima_actualizacion = Date.now();
+                await saveToCache('prestamos_detalle_cache', cachedLoans);
+                console.log(`💾 Saldo actualizado en cache: $${cachedLoan.saldo_total_pendiente}`);
             }
-            
-            // Validar que el monto no exceda el saldo
-            if (amount > cachedLoan.saldo_total_pendiente) {
-                showError(`⚠️ El monto ($${amount.toLocaleString()}) excede el saldo pendiente ($${cachedLoan.saldo_total_pendiente.toLocaleString()})`);
-                btn.disabled = false;
-                btn.textContent = 'Registrar';
-                return;
-            }
-            
-            // Agregar metadata del cache
-            paymentData.cache_saldo_antes = cachedLoan.saldo_total_pendiente;
-            paymentData.cache_timestamp = cachedLoan.ultima_actualizacion;
             
             // Save offline using IndexedDB
             console.log('📵 Guardando pago offline en IndexedDB...');
             
             const temp_id = await saveOffline('offline_pagos', paymentData);
             console.log('✅ Pago guardado offline:', temp_id);
-            
-            // 🆕 Actualizar saldo en cache (actualización optimista)
-            cachedLoan.saldo_total_pendiente -= amount;
-            cachedLoan.ultima_actualizacion = Date.now();
-            await saveToCache('prestamos_detalle_cache', cachedLoans);
-            console.log(`💾 Saldo actualizado en cache: $${cachedLoan.saldo_total_pendiente}`);
             
             await updateConnectionStatus();
             
@@ -425,7 +425,7 @@ async function collectCreditWithRenewal(oldLoanId, clientId, saldoDescontar, mon
     try {
         // Generate idempotency key to prevent duplicates
         const timestamp = Date.now();
-        const idempotencyKey = `${APP.ctx.collectorId}-${oldLoanId}-collect-${timestamp}`;
+        const idempotencyKey = `${APP.collectorContext.collectorId}-${oldLoanId}-collect-${timestamp}`;
         
         // Capture GPS location silently
         let location = null;
@@ -477,10 +477,10 @@ async function collectCreditWithRenewal(oldLoanId, clientId, saldoDescontar, mon
             console.log('📵 Guardando recogida offline en IndexedDB...');
             
             const recogidaData = {
-                panel_id: APP.ctx.panelId,
+                panel_id: APP.collectorContext.panelId,
                 cliente_id: clientId,
                 prestamo_id: oldLoanId,
-                cobrador_id: APP.ctx.collectorId,
+                cobrador_id: APP.collectorContext.collectorId,
                 monto_pago: saldoDescontar,
                 fecha_pago: getLocalToday(),
                 hora_pago: new Date().toTimeString().split(' ')[0],
@@ -529,10 +529,10 @@ async function collectCreditWithRenewal(oldLoanId, clientId, saldoDescontar, mon
 
         // Step 1: Register balance as payment for old loan
         const paymentData = {
-            panel_id: APP.ctx.panelId,
+            panel_id: APP.collectorContext.panelId,
             cliente_id: clientId,
             prestamo_id: oldLoanId,
-            cobrador_id: APP.ctx.collectorId,
+            cobrador_id: APP.collectorContext.collectorId,
             monto: saldoDescontar,
             fecha_pago: getLocalToday(),
             hora_pago: new Date().toTimeString().split(' ')[0],
@@ -555,9 +555,9 @@ async function collectCreditWithRenewal(oldLoanId, clientId, saldoDescontar, mon
         
         // Step 3: Create new loan
         const { data: newLoan, error: loanError } = await APP.supabase.from('prestamos').insert({
-            panel_id: APP.ctx.panelId,
+            panel_id: APP.collectorContext.panelId,
             cliente_id: clientId,
-            cobrador_id: APP.ctx.collectorId,
+            cobrador_id: APP.collectorContext.collectorId,
             monto_prestado: montoNuevo,
             cuota_diaria: cuotaNueva,
             total_dias: days,
@@ -739,8 +739,8 @@ async function registrarGasto(monto, concepto, observaciones) {
     
     try {
         const { error } = await APP.supabase.from('collector_expenses').insert({
-            panel_id: APP.ctx.panelId,
-            collector_id: APP.ctx.collectorId,
+            panel_id: APP.collectorContext.panelId,
+            collector_id: APP.collectorContext.collectorId,
             fecha: getLocalToday(),
             monto: monto,
             concepto: concepto,

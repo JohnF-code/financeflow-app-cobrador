@@ -296,9 +296,10 @@ async function saveOffline(storeName, data) {
         const db = DB.instance;
         
         // Agregar metadata
+        const tipo = storeName.replace('offline_', ''); // Remover prefijo "offline_" si existe
         const offlineData = {
             ...data,
-            temp_id: data.temp_id || `offline_${storeName}_${Date.now()}_${generateUUID()}`,
+            temp_id: data.temp_id || `offline_${tipo}_${Date.now()}_${generateUUID()}`,
             timestamp: data.timestamp || Date.now(),
             synced: false,
             sync_attempts: 0
