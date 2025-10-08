@@ -1013,6 +1013,10 @@
                 }
 
                 console.log('✅ Collector context loaded:', APP.ctx);
+                
+                // 🆕 Cache settings del panel para cálculos offline
+                await cacheSettings();
+                
                 console.log('📍 getCollectorContext() completed successfully');
                 return; // Exit function successfully
             } catch (error) {
@@ -1305,6 +1309,84 @@
             }
         }
 
+        // 🆕 Cache préstamo completo con todas las cuotas (para pagos/recogidas offline)
+        async function cachePrestamoCompleto(loanId) {
+            try {
+                // Obtener préstamo con cliente
+                const { data: loan, error: loanError } = await APP.supabase
+                    .from('prestamos')
+                    .select(`
+                        id, cliente_id, monto_prestado, cuota_diaria, total_dias,
+                        fecha_inicio, estado, monto_pagado, saldo_pendiente,
+                        clients:cliente_id (nombre, cedula, telefono)
+                    `)
+                    .eq('id', loanId)
+                    .single();
+                
+                if (loanError) throw loanError;
+                
+                // Obtener todas las cuotas
+                const { data: cuotas, error: cuotasError } = await APP.supabase
+                    .from('cuotas')
+                    .select('id, numero_cuota, fecha_vencimiento, estado, saldo_pendiente, monto_cuota')
+                    .eq('prestamo_id', loanId)
+                    .order('numero_cuota');
+                
+                if (cuotasError) throw cuotasError;
+                
+                // Calcular saldo total pendiente
+                const saldoTotalPendiente = cuotas
+                    ?.filter(c => c.estado !== 'pagada')
+                    ?.reduce((sum, c) => sum + Number(c.saldo_pendiente || 0), 0) || 0;
+                
+                // Preparar préstamo completo
+                const prestamoCompleto = {
+                    ...loan,
+                    saldo_total_pendiente: saldoTotalPendiente,
+                    cuotas: cuotas || [],
+                    cobrador_id: APP.ctx.collectorId,
+                    ultima_actualizacion: Date.now()
+                };
+                
+                // Guardar en cache
+                const cached = await loadFromCache('prestamos_detalle_cache');
+                const otherLoans = cached.filter(l => l.id !== loanId);
+                await saveToCache('prestamos_detalle_cache', [...otherLoans, prestamoCompleto]);
+                
+                console.log(`💾 Préstamo ${loanId} cacheado completo`);
+                return prestamoCompleto;
+            } catch (error) {
+                console.error(`❌ Error cacheando préstamo ${loanId}:`, error);
+                return null;
+            }
+        }
+
+        // 🆕 Cache settings del panel
+        async function cacheSettings() {
+            try {
+                const { data: settings, error } = await APP.supabase
+                    .from('settings')
+                    .select('*')
+                    .eq('panel_id', APP.ctx.panelId)
+                    .single();
+                
+                if (error) throw error;
+                
+                if (settings) {
+                    const settingsWithTimestamp = {
+                        ...settings,
+                        panel_id: APP.ctx.panelId,
+                        ultima_actualizacion: Date.now()
+                    };
+                    
+                    await saveToCache('panel_settings_cache', [settingsWithTimestamp]);
+                    console.log('💾 Settings cacheados');
+                }
+            } catch (error) {
+                console.error('❌ Error cacheando settings:', error);
+            }
+        }
+
         // 🆕 Render cuotas from cache (offline mode)
         function renderPendingQuotasFromCache(cachedData) {
             const container = document.getElementById('pendingQuotasList');
@@ -1474,6 +1556,13 @@
                 // 🆕 Save to cache for offline use
                 await saveToCache('cuotas_cache', loansWithDetails);
                 console.log('💾 Cuotas guardadas en cache');
+                
+                // 🆕 Cache préstamos completos para pagos/recogidas offline
+                console.log('💾 Cacheando préstamos completos...');
+                for (const loan of loans) {
+                    await cachePrestamoCompleto(loan.id);
+                }
+                console.log(`✅ ${loans.length} préstamos cacheados completos`);
             } catch (error) {
                 console.error('Error loading pending loans:', error);
                 console.error('Context:', APP.ctx);

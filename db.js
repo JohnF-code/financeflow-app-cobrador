@@ -7,7 +7,7 @@
  */
 
 const DB_NAME = 'smart_cobros_db';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // 🆕 v2: Agregar prestamos_detalle_cache y panel_settings_cache
 
 // Estado global de la base de datos
 const DB = {
@@ -78,6 +78,23 @@ async function initDB() {
                 pagosStore.createIndex('prestamo_id', 'prestamo_id', { unique: false });
                 pagosStore.createIndex('fecha_pago', 'fecha_pago', { unique: false });
                 console.log('  ✅ pagos_cache creado');
+            }
+
+            // 🆕 Cache de préstamos con detalle completo (para pagos/recogidas offline)
+            if (!db.objectStoreNames.contains('prestamos_detalle_cache')) {
+                const prestamosDetalleStore = db.createObjectStore('prestamos_detalle_cache', { keyPath: 'id' });
+                prestamosDetalleStore.createIndex('cliente_id', 'cliente_id', { unique: false });
+                prestamosDetalleStore.createIndex('cobrador_id', 'cobrador_id', { unique: false });
+                prestamosDetalleStore.createIndex('estado', 'estado', { unique: false });
+                prestamosDetalleStore.createIndex('ultima_actualizacion', 'ultima_actualizacion', { unique: false });
+                console.log('  ✅ prestamos_detalle_cache creado');
+            }
+
+            // 🆕 Cache de settings del panel (para cálculos offline)
+            if (!db.objectStoreNames.contains('panel_settings_cache')) {
+                const panelSettingsStore = db.createObjectStore('panel_settings_cache', { keyPath: 'panel_id' });
+                panelSettingsStore.createIndex('ultima_actualizacion', 'ultima_actualizacion', { unique: false });
+                console.log('  ✅ panel_settings_cache creado');
             }
 
             // ===========================

@@ -2,22 +2,60 @@
 
 // Show register payment form
 async function showRegisterPaymentForm(loanId) {
-    // Check if offline
-    if (!APP.isOnline || !navigator.onLine) {
-        showError('⚠️ No disponible offline. Necesitas conexión para registrar pagos de préstamos existentes.');
-        return;
-    }
-
     try {
-        const { data: loan } = await APP.supabase.from('prestamos').select('id, cliente_id, cuota_diaria, clients:cliente_id(nombre)').eq('id', loanId).single();
-        const { data: cuotas } = await APP.supabase.from('cuotas').select('saldo_pendiente').eq('prestamo_id', loanId).neq('estado', 'pagada');
-        const totalPending = cuotas?.reduce((s, c) => s + Number(c.saldo_pendiente || 0), 0) || 0;
+        let loan, totalPending;
+        
+        // 🆕 Si está online, obtener de Supabase
+        if (APP.isOnline && navigator.onLine) {
+            const { data } = await APP.supabase
+                .from('prestamos')
+                .select('id, cliente_id, cuota_diaria, clients:cliente_id(nombre)')
+                .eq('id', loanId)
+                .single();
+            loan = data;
+            
+            const { data: cuotas } = await APP.supabase
+                .from('cuotas')
+                .select('saldo_pendiente')
+                .eq('prestamo_id', loanId)
+                .neq('estado', 'pagada');
+            
+            totalPending = cuotas?.reduce((s, c) => s + Number(c.saldo_pendiente || 0), 0) || 0;
+        } else {
+            // 🆕 Si está offline, obtener del cache
+            console.log('📵 Modo offline - cargando préstamo del cache...');
+            const cachedLoans = await loadFromCache('prestamos_detalle_cache');
+            const cachedLoan = cachedLoans?.find(l => l.id === loanId);
+            
+            if (!cachedLoan) {
+                showError('⚠️ No hay datos de este préstamo en cache. Conecta a internet y recarga los datos primero.');
+                return;
+            }
+            
+            loan = {
+                id: cachedLoan.id,
+                cliente_id: cachedLoan.cliente_id,
+                cuota_diaria: cachedLoan.cuota_diaria,
+                clients: cachedLoan.clients
+            };
+            totalPending = cachedLoan.saldo_total_pendiente;
+            
+            console.log(`📂 Préstamo cargado del cache - Saldo: $${totalPending}`);
+        }
+        
+        // 🆕 Agregar indicador de modo offline
+        const offlineIndicator = (!APP.isOnline || !navigator.onLine) ? 
+            `<div style="background:rgba(255,193,7,0.1);border:1px solid rgba(255,193,7,0.3);border-radius:8px;padding:10px;margin-bottom:15px;font-size:14px;">
+                <strong>📵 Modo Offline</strong><br>
+                <span style="color:#666;">Datos del cache - Se sincronizará cuando vuelvas online</span>
+            </div>` : '';
         
         document.body.insertAdjacentHTML('beforeend', `
             <div id="paymentModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;">
                 <div style="background:white;border-radius:15px;padding:20px;max-width:400px;width:100%;">
                     <h3 style="margin:0 0 15px;color:#333;">Registrar Pago</h3>
                     <p style="margin:0 0 15px;color:#666;">${loan.clients?.nombre || 'Cliente'}</p>
+                    ${offlineIndicator}
                     <form id="paymentForm">
                         <label style="display:block;margin-bottom:5px;font-weight:600;">Monto</label>
                         <div style="display:flex;gap:8px;margin-bottom:8px;">
@@ -54,20 +92,62 @@ function closePaymentModal() {
 
 // Show collect credit form (renovar crédito)
 async function showCollectCreditForm(loanId) {
-    // Check if offline
-    if (!APP.isOnline || !navigator.onLine) {
-        showError('⚠️ No disponible offline. Necesitas conexión para recoger créditos.');
-        return;
-    }
-
     try {
-        // Get loan details
-        const { data: loan } = await APP.supabase.from('prestamos').select('id, cliente_id, monto_prestado, cuota_diaria, clients:cliente_id(nombre)').eq('id', loanId).single();
-        const { data: cuotas } = await APP.supabase.from('cuotas').select('saldo_pendiente').eq('prestamo_id', loanId).neq('estado', 'pagada');
-        const saldoDescontar = cuotas?.reduce((s, c) => s + Number(c.saldo_pendiente || 0), 0) || 0;
+        let loan, saldoDescontar, settings;
         
-        // Get settings for validation
-        const { data: settings } = await APP.supabase.from('settings').select('*').eq('panel_id', APP.ctx.panelId).single();
+        // 🆕 Si está online, obtener de Supabase
+        if (APP.isOnline && navigator.onLine) {
+            const { data: loanData } = await APP.supabase
+                .from('prestamos')
+                .select('id, cliente_id, monto_prestado, cuota_diaria, clients:cliente_id(nombre)')
+                .eq('id', loanId)
+                .single();
+            loan = loanData;
+            
+            const { data: cuotas } = await APP.supabase
+                .from('cuotas')
+                .select('saldo_pendiente')
+                .eq('prestamo_id', loanId)
+                .neq('estado', 'pagada');
+            saldoDescontar = cuotas?.reduce((s, c) => s + Number(c.saldo_pendiente || 0), 0) || 0;
+            
+            const { data: settingsData } = await APP.supabase
+                .from('settings')
+                .select('*')
+                .eq('panel_id', APP.ctx.panelId)
+                .single();
+            settings = settingsData;
+        } else {
+            // 🆕 Si está offline, obtener del cache
+            console.log('📵 Modo offline - cargando préstamo del cache...');
+            const cachedLoans = await loadFromCache('prestamos_detalle_cache');
+            const cachedLoan = cachedLoans?.find(l => l.id === loanId);
+            
+            if (!cachedLoan) {
+                showError('⚠️ No hay datos de este préstamo en cache. Conecta a internet y recarga los datos primero.');
+                return;
+            }
+            
+            loan = {
+                id: cachedLoan.id,
+                cliente_id: cachedLoan.cliente_id,
+                monto_prestado: cachedLoan.monto_prestado,
+                cuota_diaria: cachedLoan.cuota_diaria,
+                clients: cachedLoan.clients
+            };
+            saldoDescontar = cachedLoan.saldo_total_pendiente;
+            
+            // Obtener settings del cache
+            const cachedSettings = await loadFromCache('panel_settings_cache');
+            settings = cachedSettings && cachedSettings.length > 0 ? cachedSettings[0] : null;
+            
+            if (!settings) {
+                showError('⚠️ No hay configuración en cache. Conecta a internet y recarga los datos primero.');
+                return;
+            }
+            
+            console.log(`📂 Préstamo cargado del cache - Saldo: $${saldoDescontar}`);
+        }
         
         const minMonto = Number(settings?.valor_minimo_prestamo || 50000);
         const maxMonto = Number(settings?.valor_maximo_prestamo || 5000000);
@@ -106,11 +186,19 @@ async function showCollectCreditForm(loanId) {
             document.getElementById('collectReceived').textContent = '$' + Number(clienteRecibe).toLocaleString();
         }
         
+        // 🆕 Agregar indicador de modo offline
+        const offlineIndicator = (!APP.isOnline || !navigator.onLine) ? 
+            `<div style="background:rgba(255,193,7,0.1);border:1px solid rgba(255,193,7,0.3);border-radius:8px;padding:10px;margin-bottom:12px;font-size:13px;">
+                <strong>📵 Modo Offline</strong><br>
+                <span style="color:#666;">Datos del cache - Se sincronizará cuando vuelvas online</span>
+            </div>` : '';
+        
         const modalHTML = `
             <div id="collectModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;overflow-y:auto;">
                 <div style="background:white;border-radius:15px;padding:20px;max-width:450px;width:100%;max-height:90vh;overflow-y:auto;margin:20px 0;">
                     <h3 style="margin:0 0 8px;color:#333;font-size:18px;">Recoger Crédito</h3>
                     <p style="margin:0 0 15px;color:#666;font-size:14px;">${loan.clients?.nombre || 'Cliente'}</p>
+                    ${offlineIndicator}
                     
                     <!-- Resumen Saldo -->
                     <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:12px;margin-bottom:15px;">
@@ -242,17 +330,51 @@ async function registerPaymentForLoan(loanId, clientId, amount) {
 
         // 🆕 Check if online
         if (!APP.isOnline || !navigator.onLine) {
+            // 🆕 Validar monto vs saldo del cache
+            console.log('📵 Offline - validando pago con datos del cache...');
+            const cachedLoans = await loadFromCache('prestamos_detalle_cache');
+            const cachedLoan = cachedLoans?.find(l => l.id === loanId);
+            
+            if (!cachedLoan) {
+                showError('⚠️ No hay datos del préstamo en cache');
+                btn.disabled = false;
+                btn.textContent = 'Registrar';
+                return;
+            }
+            
+            // Validar que el monto no exceda el saldo
+            if (amount > cachedLoan.saldo_total_pendiente) {
+                showError(`⚠️ El monto ($${amount.toLocaleString()}) excede el saldo pendiente ($${cachedLoan.saldo_total_pendiente.toLocaleString()})`);
+                btn.disabled = false;
+                btn.textContent = 'Registrar';
+                return;
+            }
+            
+            // Agregar metadata del cache
+            paymentData.cache_saldo_antes = cachedLoan.saldo_total_pendiente;
+            paymentData.cache_timestamp = cachedLoan.ultima_actualizacion;
+            
             // Save offline using IndexedDB
-            console.log('📵 Offline - guardando pago en IndexedDB...');
+            console.log('📵 Guardando pago offline en IndexedDB...');
             
             const temp_id = await saveOffline('offline_pagos', paymentData);
             console.log('✅ Pago guardado offline:', temp_id);
+            
+            // 🆕 Actualizar saldo en cache (actualización optimista)
+            cachedLoan.saldo_total_pendiente -= amount;
+            cachedLoan.ultima_actualizacion = Date.now();
+            await saveToCache('prestamos_detalle_cache', cachedLoans);
+            console.log(`💾 Saldo actualizado en cache: $${cachedLoan.saldo_total_pendiente}`);
             
             await updateConnectionStatus();
             
             showSuccess('💾 Pago guardado offline - se sincronizará cuando haya conexión');
             closePaymentModal();
-            // Don't reload data (keep offline mode working)
+            
+            // Recargar vista (mostrará cache actualizado)
+            if (typeof loadPendingQuotas === 'function') {
+                loadPendingQuotas();
+            }
             return;
         }
 
@@ -323,8 +445,25 @@ async function collectCreditWithRenewal(oldLoanId, clientId, saldoDescontar, mon
 
         // 🆕 Check if online
         if (!APP.isOnline || !navigator.onLine) {
+            // 🆕 Validar con datos del cache
+            console.log('📵 Offline - validando recogida con datos del cache...');
+            const cachedLoans = await loadFromCache('prestamos_detalle_cache');
+            const cachedLoan = cachedLoans?.find(l => l.id === oldLoanId);
+            
+            if (!cachedLoan) {
+                showError('⚠️ No hay datos del préstamo en cache');
+                btn.disabled = false;
+                btn.textContent = 'Guardar';
+                return;
+            }
+            
+            // Validar que el saldo coincida
+            if (Math.abs(saldoDescontar - cachedLoan.saldo_total_pendiente) > 1) {
+                console.warn(`⚠️ Saldo desajustado: Form=${saldoDescontar}, Cache=${cachedLoan.saldo_total_pendiente}`);
+            }
+            
             // Save offline - using IndexedDB store 'offline_recogidas'
-            console.log('📵 Offline - guardando recogida en IndexedDB...');
+            console.log('📵 Guardando recogida offline en IndexedDB...');
             
             const recogidaData = {
                 panel_id: APP.ctx.panelId,
@@ -341,11 +480,26 @@ async function collectCreditWithRenewal(oldLoanId, clientId, saldoDescontar, mon
                     cuota_diaria: cuotaNueva,
                     total_dias: days,
                     fecha_inicio: getLocalToday()
-                }
+                },
+                // 🆕 Metadata del cache para referencia
+                cache_saldo_antes: cachedLoan.saldo_total_pendiente,
+                cache_timestamp: cachedLoan.ultima_actualizacion,
+                idempotency_key: idempotencyKey
             };
             
             const temp_id = await saveOffline('offline_recogidas', recogidaData);
             console.log('✅ Recogida guardada offline:', temp_id);
+            
+            // 🆕 Actualizar cache optimísticamente (marcar préstamo antiguo como recogido)
+            // Esto mejora la UX mostrando cambios inmediatos aunque esté offline
+            const indexToUpdate = cachedLoans.findIndex(l => l.id === oldLoanId);
+            if (indexToUpdate !== -1) {
+                cachedLoans[indexToUpdate].estado = 'renovado_offline'; // Estado temporal
+                cachedLoans[indexToUpdate].saldo_total_pendiente = 0;
+                cachedLoans[indexToUpdate].ultima_actualizacion = Date.now();
+                await saveToCache('prestamos_detalle_cache', cachedLoans);
+                console.log(`💾 Cache actualizado - Préstamo ${oldLoanId} marcado como renovado`);
+            }
             
             await updateConnectionStatus();
             
@@ -354,6 +508,11 @@ async function collectCreditWithRenewal(oldLoanId, clientId, saldoDescontar, mon
             showSuccessModal(saldoDescontar, clienteRecibe, montoNuevo, cuotaNueva, days, total);
             
             showSuccess('💾 Recogida guardada offline - se sincronizará cuando haya conexión');
+            
+            // Recargar vista (mostrará cache actualizado)
+            if (typeof loadPendingQuotas === 'function') {
+                loadPendingQuotas();
+            }
             return;
         }
 
