@@ -78,52 +78,25 @@
             position: fixed;
             top: 0;
             left: 0;
-            right: 0;
+            width: 100%;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 12px 50px 12px 20px;
+            padding: 12px 20px;
             box-shadow: 0 2px 12px rgba(0,0,0,0.15);
-            z-index: 9999;
+            z-index: 10000;
             display: none;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 12px;
-            animation: slideDown 0.3s ease-out;
+            gap: 8px;
             text-align: center;
-            min-height: 50px;
+            min-height: 60px;
         }
         .offline-banner.show {
             display: flex;
         }
         .offline-banner.ready {
             background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-        }
-        .offline-banner .status-icon {
-            font-size: 24px;
-            animation: pulse 2s infinite;
-        }
-        .offline-banner .status-text h4 {
-            margin: 0 0 2px;
-            font-size: 14px;
-            font-weight: 600;
-        }
-        .offline-banner .status-text p {
-            margin: 0;
-            font-size: 12px;
-            opacity: 0.9;
-        }
-        .offline-banner .close-banner {
-            position: absolute;
-            right: 10px;
-            background: rgba(255,255,255,0.2);
-            border: none;
-            color: white;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 16px;
-            flex-shrink: 0;
         }
         @keyframes slideDown {
             from { transform: translateY(-100%); opacity: 0; }
@@ -403,12 +376,9 @@
 
     <!-- 🆕 Banner de Estado Offline -->
     <div id="offlineBanner" class="offline-banner">
-        <div class="status-icon">📦</div>
-        <div class="status-text">
-            <h4>Preparando modo offline...</h4>
-            <p>Descargando datos para trabajar sin conexión</p>
-        </div>
-        <button class="close-banner" onclick="document.getElementById('offlineBanner').classList.remove('show')">×</button>
+        <div style="font-size: 24px; margin-bottom: 4px;">📦</div>
+        <div style="font-weight: 600; font-size: 14px;">Preparando modo offline...</div>
+        <div style="font-size: 12px; opacity: 0.9;">Descargando datos para trabajar sin conexión</div>
     </div>
 
     <div class="container">
@@ -1023,13 +993,11 @@
             const banner = document.getElementById('offlineBanner');
             if (!banner) return;
             
-            const iconEl = banner.querySelector('.status-icon');
-            const titleEl = banner.querySelector('.status-text h4');
-            const subtitleEl = banner.querySelector('.status-text p');
-            
-            if (iconEl) iconEl.textContent = icon;
-            if (titleEl) titleEl.textContent = title;
-            if (subtitleEl) subtitleEl.textContent = subtitle;
+            banner.innerHTML = `
+                <div style="font-size: 24px; margin-bottom: 4px;">${icon}</div>
+                <div style="font-weight: 600; font-size: 14px;">${title}</div>
+                <div style="font-size: 12px; opacity: 0.9;">${subtitle}</div>
+            `;
         }
 
         // Initialize app
@@ -1767,19 +1735,35 @@
 
                 // 🆕 If offline, load from cache
                 if (!APP.isOnline || !navigator.onLine) {
-                    console.log('📵 Offline mode - loading clients from cache...');
+                    console.log('==========================================');
+                    console.log('📵 CARGANDO CLIENTES OFFLINE');
+                    console.log('  navigator.onLine:', navigator.onLine);
+                    console.log('  APP.isOnline:', APP.isOnline);
+                    
                     const cachedClients = await loadFromCache('clientes_cache');
+                    console.log('  cachedClients:', cachedClients);
+                    console.log('  cachedClients?.length:', cachedClients?.length);
                     
                     if (cachedClients && cachedClients.length > 0) {
                         console.log(`📂 Loaded ${cachedClients.length} clients from cache`);
+                        console.log('  Primer cliente:', cachedClients[0]);
+                        
                         PAGINATION_STATE.clientes.allData = cachedClients;
                         PAGINATION_STATE.clientes.filteredData = cachedClients;
                         PAGINATION_STATE.clientes.currentPage = 1;
+                        
+                        console.log('  Configurando search listener...');
                         setupSearchListener('clientes', ['nombre', 'cedula', 'telefono'], renderClientes);
+                        
+                        console.log('  Llamando renderClientes...');
                         renderClientes(cachedClients);
+                        console.log('  renderClientes completado');
+                        console.log('==========================================');
                         return;
                     } else {
-                        container.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>No hay clientes en cache</p></div>';
+                        console.log('❌ No hay clientes en cache o cache vacio');
+                        console.log('==========================================');
+                        container.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>No hay clientes en cache. Conecta a internet y navega por los menús para descargar datos.</p></div>';
                         return;
                     }
                 }
