@@ -344,10 +344,16 @@ async function syncPagos(pagos) {
             }
 
             // Marcar como sincronizado
-            await markAsSynced('offline_pagos', pago.temp_id);
-            SYNC.totalSynced++;
-
-            console.log(`✅ Pago sincronizado: ${pago.monto} (${pago.prestamo_id})`);
+            try {
+                await markAsSynced('offline_pagos', pago.temp_id);
+                SYNC.totalSynced++;
+                console.log(`✅ Pago sincronizado: ${pago.monto} (${pago.prestamo_id})`);
+            } catch (markError) {
+                console.error(`❌ Error marcando como sincronizado:`, markError);
+                console.error(`   temp_id: ${pago.temp_id}`);
+                // Intentar continuar sin marcar
+                SYNC.totalSynced++;
+            }
 
         } catch (error) {
             console.error(`❌ Error sincronizando pago:`, error);
