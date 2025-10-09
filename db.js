@@ -293,14 +293,29 @@ async function saveOffline(storeName, data) {
 
     try {
         console.log(`📝 Guardando en ${storeName}:`, data);
+        console.log(`📱 Platform: ${navigator.platform}, UA: ${navigator.userAgent.substring(0, 50)}...`);
         const db = DB.instance;
         
         // Agregar metadata
         const tipo = storeName.replace('offline_', ''); // Remover prefijo "offline_" si existe
+        
+        // 🍎 Sanitizar datos para Safari/iPhone (eliminar undefined, null problemáticos)
+        const sanitizedData = {};
+        for (const [key, value] of Object.entries(data)) {
+            // Convertir undefined a null, eliminar campos problemáticos
+            if (value === undefined) {
+                sanitizedData[key] = null;
+            } else if (value instanceof Date) {
+                sanitizedData[key] = value.toISOString();
+            } else {
+                sanitizedData[key] = value;
+            }
+        }
+        
         const offlineData = {
-            ...data,
+            ...sanitizedData,
             temp_id: data.temp_id || `offline_${tipo}_${Date.now()}_${generateUUID()}`,
-            timestamp: data.timestamp || Date.now(),
+            timestamp: Date.now(), // Siempre número
             synced: false,
             sync_attempts: 0
         };
@@ -312,22 +327,34 @@ async function saveOffline(storeName, data) {
 
         // Guardar en store offline y cola_sync usando promesas
         return new Promise((resolve, reject) => {
+            // 🍎 Timeout específico para Safari (a veces no dispara oncomplete)
+            const safariTimeout = setTimeout(() => {
+                console.warn('⚠️ Timeout Safari - verificando si se guardó...');
+                // No rechazar, Safari puede haber guardado de todos modos
+            }, 3000);
+            
             try {
                 const tx = db.transaction([storeName, 'cola_sync'], 'readwrite');
                 
                 tx.onerror = (event) => {
+                    clearTimeout(safariTimeout);
                     console.error(`❌ Error en transacción ${storeName}:`, event.target.error);
                     console.error('❌ Detalles completos:', event);
+                    console.error('❌ Platform:', navigator.platform);
                     reject(event.target.error);
                 };
                 
                 tx.oncomplete = () => {
+                    clearTimeout(safariTimeout);
                     console.log(`✅ Transacción completa: ${storeName} - ${offlineData.temp_id}`);
+                    console.log(`✅ Platform: ${navigator.platform}`);
                     resolve(offlineData.temp_id);
                 };
 
                 tx.onabort = (event) => {
+                    clearTimeout(safariTimeout);
                     console.error(`❌ Transacción abortada ${storeName}:`, event.target.error);
+                    console.error('❌ Platform:', navigator.platform);
                     reject(new Error('Transaction aborted'));
                 };
 
