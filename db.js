@@ -488,26 +488,32 @@ async function clearSynced(storeName) {
                 resolve();
             };
             
-            const index = store.index('synced');
-            const request = index.getAllKeys(true); // synced = true
+            // Obtener TODOS y filtrar manualmente
+            const request = store.getAll();
 
             request.onsuccess = () => {
-                const keys = request.result;
-                for (const key of keys) {
-                    store.delete(key);
+                const allItems = request.result || [];
+                // Filtrar solo los sincronizados (synced = true)
+                const syncedItems = allItems.filter(item => item.synced === true);
+                
+                for (const item of syncedItems) {
+                    store.delete(item.temp_id);
                 }
-                console.log(`🗑️ ${keys.length} items eliminados de ${storeName}`);
+                console.log(`🗑️ ${syncedItems.length} items sincronizados eliminados de ${storeName}`);
             };
 
             // Limpiar también de cola_sync
-            const colaIndex = colaStore.index('tipo');
-            const colaRequest = colaIndex.getAll(storeName);
+            const colaRequest = colaStore.getAll();
             
             colaRequest.onsuccess = () => {
-                const items = colaRequest.result;
-                for (const item of items) {
+                const allColaItems = colaRequest.result || [];
+                // Filtrar por tipo = storeName
+                const itemsToDelete = allColaItems.filter(item => item.tipo === storeName);
+                
+                for (const item of itemsToDelete) {
                     colaStore.delete(item.id);
                 }
+                console.log(`🗑️ ${itemsToDelete.length} items eliminados de cola_sync`);
             };
         } catch (error) {
             console.error(`❌ Error limpiando sincronizados de ${storeName}:`, error);
