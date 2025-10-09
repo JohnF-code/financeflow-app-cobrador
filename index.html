@@ -2349,7 +2349,9 @@
                     // Insertar modal básico (mismo layout que online)
                     document.body.insertAdjacentHTML('beforeend', `
                         <div id="creditModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;">
-                            <div style="background:white;border-radius:15px;padding:20px;max-width:450px;width:100%;max-height:90vh;overflow-y:auto;">
+                            <div style="background:white;border-radius:15px;padding:20px;max-width:450px;width:100%;max-height:90vh;overflow-y:auto;position:relative;">
+                                <button type="button" onclick="hideCreateCreditForm()" aria-label="Cerrar" 
+                                    style="position:absolute;top:10px;right:10px;background:#ef4444;color:white;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;">✕</button>
                                 <div id="clientSelectorView">
                                     <h3 style="margin:0 0 15px;color:#333;">Agregar Crédito</h3>
                                     <div style="margin-bottom:20px;">
@@ -2631,10 +2633,13 @@
                     amountInput.addEventListener('input', calculateCredit);
                     quotaInput.addEventListener('input', calculateCredit);
                     
-                document.getElementById('newCreditForm').addEventListener('submit', async (e) => {
+                const newForm = document.getElementById('newCreditForm');
+                if (newForm) {
+                newForm.addEventListener('submit', async (e) => {
                     e.preventDefault();
                     await createCredit(settings);
                 });
+                }
                 
                 // Setup client search
                 const searchInput = document.getElementById('clientSearchInput');
