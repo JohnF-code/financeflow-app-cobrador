@@ -298,9 +298,19 @@ async function syncCreditos(creditos) {
  * @param {Array} pagos - Array de pagos offline
  */
 async function syncPagos(pagos) {
-    console.log(`💵 Sincronizando ${pagos.length} pagos...`);
+    console.log('==========================================');
+    console.log(`💵 SYNC PAGOS - Total: ${pagos.length}`);
+    console.log(`📱 User Agent: ${navigator.userAgent}`);
+    console.log(`🌐 Platform: ${navigator.platform}`);
+    console.log('==========================================');
 
-    for (const pago of pagos) {
+    for (let i = 0; i < pagos.length; i++) {
+        const pago = pagos[i];
+        console.log(`\n📝 Procesando pago ${i + 1}/${pagos.length}:`);
+        console.log(`   temp_id: ${pago.temp_id}`);
+        console.log(`   monto: ${pago.monto}`);
+        console.log(`   prestamo_id: ${pago.prestamo_id}`);
+        
         try {
             // Verificar que cliente_id y prestamo_id no sean temp_id
             if (typeof pago.cliente_id === 'string' && pago.cliente_id.startsWith('offline_')) {
@@ -328,40 +338,62 @@ async function syncPagos(pagos) {
             };
 
             // Insertar en Supabase
+            console.log(`   🔄 Insertando en Supabase...`);
             const { error } = await APP.supabase
                 .from('pagos')
                 .insert(pagoData);
 
             if (error) {
+                console.error(`   ❌ Error Supabase:`, error);
                 // Si es error de idempotency key duplicada, considerar como éxito
                 if (error.message?.includes('idempotency_key')) {
-                    console.log(`✅ Pago ya sincronizado (idempotency): ${pago.idempotency_key}`);
+                    console.log(`   ✅ Pago ya sincronizado (idempotency): ${pago.idempotency_key}`);
                     await markAsSynced('offline_pagos', pago.temp_id);
                     SYNC.totalSynced++;
                     continue;
                 }
                 throw error;
             }
+            
+            console.log(`   ✅ Insertado en Supabase correctamente`);
 
             // Marcar como sincronizado
+            console.log(`   🏷️ Marcando como sincronizado...`);
             try {
                 await markAsSynced('offline_pagos', pago.temp_id);
                 SYNC.totalSynced++;
-                console.log(`✅ Pago sincronizado: ${pago.monto} (${pago.prestamo_id})`);
+                console.log(`   ✅✅ PAGO SINCRONIZADO COMPLETAMENTE`);
+                console.log(`   Monto: $${pago.monto}, Préstamo: ${pago.prestamo_id}`);
             } catch (markError) {
-                console.error(`❌ Error marcando como sincronizado:`, markError);
+                console.error(`   ❌ Error marcando (Safari/iPhone):`, markError);
                 console.error(`   temp_id: ${pago.temp_id}`);
-                // Intentar continuar sin marcar
+                console.error(`   Tipo error: ${markError.name}`);
+                console.error(`   Stack: ${markError.stack}`);
+                // Intentar continuar sin marcar - pago YA está en Supabase
                 SYNC.totalSynced++;
+                console.log(`   ⚠️ Pago en Supabase pero no marcado localmente`);
             }
 
         } catch (error) {
-            console.error(`❌ Error sincronizando pago:`, error);
+            console.error(`\n❌❌ ERROR SINCRONIZANDO PAGO ${i + 1}:`);
+            console.error(`   Error: ${error.message}`);
+            console.error(`   temp_id: ${pago.temp_id}`);
+            console.error(`   Stack:`, error.stack);
             SYNC.totalFailed++;
             
-            await incrementSyncAttempts('offline_pagos', pago.temp_id, error.message);
+            try {
+                await incrementSyncAttempts('offline_pagos', pago.temp_id, error.message);
+            } catch (incError) {
+                console.error(`   ❌ No se pudo incrementar intentos:`, incError);
+            }
         }
     }
+    
+    console.log('\n==========================================');
+    console.log(`💵 SYNC PAGOS COMPLETADO`);
+    console.log(`   Exitosos: ${SYNC.totalSynced - (SYNC.totalSynced - pagos.length + SYNC.totalFailed)}`);
+    console.log(`   Fallidos: ${SYNC.totalFailed}`);
+    console.log('==========================================\n');
 }
 
 /**
