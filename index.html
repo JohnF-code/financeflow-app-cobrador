@@ -2658,7 +2658,8 @@
                     if (!APP.isOnline) {
                         const normalize = (v) => (v == null ? '' : String(v)).toLowerCase();
                         const clientesCache = await loadFromCache('clientes_cache');
-                        results = (clientesCache || []).filter(c => normalize(c.nombre).includes(term.toLowerCase()) || normalize(c.cedula).includes(term.toLowerCase())).slice(0, 5);
+                        const q = normalize(term);
+                        results = (clientesCache || []).filter(c => normalize(c.nombre).includes(q) || normalize(c.cedula).includes(q)).slice(0, 5);
                     } else {
                         const resp = await APP.supabase
                             .from('clients')
@@ -2713,6 +2714,11 @@
             const submitBtn = document.getElementById('createCreditBtn') 
                 || document.querySelector('#newCreditForm .btn-primary') 
                 || document.querySelector('#newCreditForm button[type="submit"]');
+            const formEl = document.getElementById('newCreditForm');
+            if (!formEl) {
+                showError('Formulario no disponible. Selecciona un cliente primero.');
+                return;
+            }
             if (submitBtn) {
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Creando...';
