@@ -323,13 +323,7 @@ async function saveOffline(storeName, data) {
         console.log(`🔑 temp_id generado: ${offlineData.temp_id}`);
 
         // Cifrar datos sensibles (si está habilitado)
-        // 🍎 iOS: deshabilitar cifrado para pagos para pruebas
-        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-        const bypassEncrypt = isIOS && (storeName === 'offline_pagos');
-        if (bypassEncrypt) {
-            console.warn('🍎 iOS: BYPASS cifrado para offline_pagos (pruebas)');
-        }
-        const encrypted = (CRYPTO.isEnabled && !bypassEncrypt) ? await encryptObject(offlineData) : offlineData;
+        const encrypted = CRYPTO.isEnabled ? await encryptObject(offlineData) : offlineData;
 
         // Guardar en store offline y cola_sync usando promesas
         return new Promise((resolve, reject) => {
@@ -436,13 +430,8 @@ async function getOfflineQueue() {
                     // Filtrar solo los NO sincronizados
                     const data = allData.filter(item => item.synced === false);
                     
-                    // Descifrar si es necesario (excepto pagos en iOS)
-                    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-                    const bypassDecrypt = isIOS && (storeName === 'offline_pagos');
-                    if (bypassDecrypt) {
-                        console.warn('🍎 iOS: BYPASS decrypt para offline_pagos (pruebas)');
-                        queue[storeName] = data;
-                    } else if (CRYPTO.isEnabled && data.length > 0) {
+                    // Descifrar si es necesario
+                    if (CRYPTO.isEnabled && data.length > 0) {
                         try {
                             queue[storeName] = await Promise.all(
                                 data.map(item => decryptObject(item))

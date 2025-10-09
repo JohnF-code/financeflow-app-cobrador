@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v4.6 (iPhone Fallbacks)</title>
-    <!-- Cache Buster: v4.6.<?php echo time(); ?> -->
+    <title>Cobrador App - v4.7 (Seguridad + Crédito Offline)</title>
+    <!-- Cache Buster: v4.7.<?php echo time(); ?> -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js?v=4.6"></script>
-    <script src="crypto.js?v=4.6"></script>
-    <script src="sync.js?v=4.6"></script>
-    <script src="iphone-debug.js?v=4.6"></script>
+    <script src="db.js?v=4.7"></script>
+    <script src="crypto.js?v=4.7"></script>
+    <script src="sync.js?v=4.7"></script>
+    <script src="iphone-debug.js?v=4.7"></script>
     <style display="none">
         * {
             margin: 0;
@@ -678,9 +678,9 @@
 
     <!-- Scripts -->
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <script src="config.js?v=4.6"></script>
-    <script src="search-pagination.js?v=4.6"></script>
-    <script src="payment-forms.js?v=4.6"></script>
+    <script src="config.js?v=4.7"></script>
+    <script src="search-pagination.js?v=4.7"></script>
+    <script src="payment-forms.js?v=4.7"></script>
     <script>
         // Global app state
         const APP = {
@@ -2314,6 +2314,110 @@
             console.log('🆕 showCreateCreditForm called');
             
             try {
+                // Offline fallback: construir modal usando cache local
+                if (!APP.isOnline) {
+                    console.log('🔴 Offline: usando cache para crear crédito');
+                    const settingsRows = await loadFromCache('panel_settings_cache');
+                    const settings = {};
+                    (settingsRows || []).forEach(s => {
+                        try {
+                            const val = (typeof s.value === 'string' && (s.value.startsWith('{') || s.value.startsWith('['))) ? JSON.parse(s.value) : s.value;
+                            settings[s.key] = val;
+                        } catch { settings[s.key] = s.value; }
+                    });
+                    const minCuotas = settings.min_cuotas || 30;
+                    const maxCuotas = settings.max_cuotas || 90;
+                    const cuotaMinima = settings.cuota_minima || 5000;
+
+                    const clientes = await loadFromCache('clientes_cache');
+                    const creditos = await loadFromCache('creditos_cache');
+                    const activeByClient = new Set((creditos || []).filter(c => c.estado === 'activo').map(c => (c.cliente_id || (c.clients && c.clients.id))).filter(Boolean));
+                    const clientsWithoutCredit = (clientes || []).filter(c => !activeByClient.has(c.id)).slice(0, 5);
+
+                    const withoutCreditHTML = clientsWithoutCredit.map(c => `
+                        <div onclick="selectClientForCredit('${c.id}', '${(c.nombre||'').replace(/'/g, "\\'")}', '${c.cedula||''}')" 
+                            style="padding:12px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer;transition:all 0.2s;margin-bottom:8px;"
+                            onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">
+                            <div style="font-weight:600;color:#333;margin-bottom:2px;">${c.nombre||''}</div>
+                            <div style="font-size:13px;color:#666;">🆔 ${c.cedula||''}</div>
+                            <button type="button" style="margin-top:6px;padding:6px 12px;background:#10b981;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;">
+                                Asignar
+                            </button>
+                        </div>
+                    `).join('');
+
+                    // Insertar modal básico (mismo layout que online)
+                    document.body.insertAdjacentHTML('beforeend', `
+                        <div id="creditModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;">
+                            <div style="background:white;border-radius:15px;padding:20px;max-width:450px;width:100%;max-height:90vh;overflow-y:auto;">
+                                <div id="clientSelectorView">
+                                    <h3 style="margin:0 0 15px;color:#333;">Agregar Crédito</h3>
+                                    <div style="margin-bottom:20px;">
+                                        <label style="display:block;margin-bottom:8px;font-weight:600;color:#374151;font-size:14px;">Buscar cliente</label>
+                                        <input type="text" id="clientSearchInput" placeholder="Cédula o nombre del cliente" 
+                                            style="width:100%;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:15px;">
+                                        <div id="searchResults" style="margin-top:10px;max-height:200px;overflow-y:auto;"></div>
+                                    </div>
+                                    ${withoutCreditHTML ? `
+                                        <div style="margin-bottom:20px;">
+                                            <h4 class="client-section-title" style="margin:0 0 10px;font-size:14px;color:#666;font-weight:600;">Clientes sin crédito activo</h4>
+                                            ${withoutCreditHTML}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                <form id="newCreditForm" style="display:none;grid-template-columns:1fr;gap:12px;">
+                                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+                                        <button type="button" onclick="showClientSelector()" style="background:none;border:none;font-size:20px;cursor:pointer;">←</button>
+                                        <h3 style="margin:0;color:#333;flex:1;">Crear Crédito</h3>
+                                    </div>
+                                    <div style="background:#f3f4f6;padding:12px;border-radius:8px;margin-bottom:10px;">
+                                        <div style="font-size:13px;color:#666;margin-bottom:2px;">Cliente seleccionado:</div>
+                                        <div id="selectedClientName" style="font-weight:600;color:#333;"></div>
+                                        <div id="selectedClientCedula" style="font-size:13px;color:#666;"></div>
+                                    </div>
+                                    <input type="hidden" id="creditClient" required>
+                                    <div>
+                                        <label style="display:block;margin-bottom:5px;font-weight:600;color:#374151;">Monto del crédito *</label>
+                                        <input type="text" inputmode="numeric" id="creditAmount" class="form-input" required 
+                                            placeholder="Ej: 500000" 
+                                            style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;-webkit-appearance:none;-moz-appearance:textfield;">
+                                        <small style="color:#666;font-size:12px;">Mínimo: $50,000 - Múltiplo de $1,000</small>
+                                    </div>
+                                    <div>
+                                        <label style="display:block;margin-bottom:5px;font-weight:600;color:#374151;">Cuota diaria *</label>
+                                        <input type="text" inputmode="numeric" id="creditDailyQuota" class="form-input" required 
+                                            placeholder="Ej: 20000" 
+                                            style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;-webkit-appearance:none;-moz-appearance:textfield;">
+                                        <small style="color:#666;font-size:12px;">Mínimo recomendado: $${cuotaMinima.toLocaleString()}</small>
+                                    </div>
+                                    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
+                                        <button type="button" onclick="hideCreateCreditForm()" class="btn-secondary">Cancelar</button>
+                                        <button type="button" onclick="createCredit({min_cuotas:${minCuotas},max_cuotas:${maxCuotas},cuota_minima:${cuotaMinima}})" class="btn-primary">Crear Crédito</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    `);
+
+                    // Buscar en cache por nombre/cedula
+                    const input = document.getElementById('clientSearchInput');
+                    const results = document.getElementById('searchResults');
+                    if (input && results) {
+                        input.addEventListener('input', () => {
+                            const q = (input.value || '').toLowerCase();
+                            const filtered = (clientes || []).filter(c => (c.nombre||'').toLowerCase().includes(q) || (c.cedula||'').toLowerCase().includes(q)).slice(0, 20);
+                            results.innerHTML = filtered.map(c => `
+                                <div onclick=\"selectClientForCredit('${c.id}','${(c.nombre||'').replace(/'/g, "\\'")}','${c.cedula||''}')\" 
+                                    style=\"padding:10px;border-bottom:1px solid #eee;cursor:pointer;\">
+                                    <div style=\"font-weight:600;\">${c.nombre||''}</div>
+                                    <div style=\"font-size:12px;color:#666;\">🆔 ${c.cedula||''}</div>
+                                </div>
+                            `).join('');
+                        });
+                    }
+
+                    return; // No continuar con flujo online
+                }
                 // Get settings
                 const { data: settingsData } = await APP.supabase
                     .from('settings')
@@ -2658,11 +2762,12 @@
                     console.warn('⚠️ No se pudo capturar GPS en crédito:', gpsError);
                 }
 
-                // Create loan
+                // Create loan (offline-first)
                 const loanData = {
                     panel_id: APP.collectorContext.panelId,
                     cliente_id: clientId,
                     cobrador_id: APP.collectorContext.collectorId,
+                    created_by: APP.collectorContext.userId || APP.collectorContext.collectorId,
                     monto_prestado: amount,
                     cuota_diaria: dailyQuota,
                     total_dias: days,
@@ -2674,6 +2779,30 @@
                 if (location) {
                     loanData.lat = location.latitude;
                     loanData.lng = location.longitude;
+                }
+
+                if (!APP.isOnline) {
+                    // Guardar offline
+                    const tempId = await saveOffline('offline_creditos', loanData);
+                    showSuccess(`💾 Crédito guardado offline\ntemp_id: ${String(tempId).substring(0, 28)}...\n\nSe sincronizará cuando haya conexión`);
+                    hideCreateCreditForm();
+                    // Optimista: actualizar cache de créditos
+                    try {
+                        const creditos = await loadFromCache('creditos_cache');
+                        creditos.push({
+                            id: tempId,
+                            monto_prestado: amount,
+                            cuota_diaria: dailyQuota,
+                            total_dias: days,
+                            estado: 'activo',
+                            fecha_inicio: getLocalToday(),
+                            clients: { nombre: document.getElementById('selectedClientName').textContent || '' }
+                        });
+                        await saveToCache('creditos_cache', creditos);
+                    } catch {}
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Crear Crédito';
+                    return;
                 }
 
                 const { data, error } = await APP.supabase

@@ -261,6 +261,7 @@ async function syncCreditos(creditos) {
                 panel_id: APP.collectorContext.panelId,
                 cliente_id: clienteId,
                 cobrador_id: APP.collectorContext.collectorId,
+                created_by: APP.collectorContext.userId || APP.collectorContext.collectorId,
                 monto_prestado: credito.monto_prestado,
                 cuota_diaria: credito.cuota_diaria,
                 total_dias: credito.total_dias,
