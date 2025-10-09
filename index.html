@@ -1517,23 +1517,23 @@
         // 🆕 Cache settings del panel
         async function cacheSettings() {
             try {
+                // Obtener TODOS los settings (no usar .single())
                 const { data: settings, error } = await APP.supabase
                     .from('settings')
                     .select('*')
-                    .eq('panel_id', APP.collectorContext.panelId)
-                    .single();
+                    .eq('panel_id', APP.collectorContext.panelId);
                 
                 if (error) throw error;
                 
-                if (settings) {
-                    const settingsWithTimestamp = {
-                        ...settings,
+                if (settings && settings.length > 0) {
+                    const settingsWithTimestamp = settings.map(s => ({
+                        ...s,
                         panel_id: APP.collectorContext.panelId,
                         ultima_actualizacion: Date.now()
-                    };
+                    }));
                     
-                    await saveToCache('panel_settings_cache', [settingsWithTimestamp]);
-                    console.log('💾 Settings cacheados');
+                    await saveToCache('panel_settings_cache', settingsWithTimestamp);
+                    console.log(`💾 ${settings.length} Settings cacheados`);
                 }
             } catch (error) {
                 console.error('❌ Error cacheando settings:', error);

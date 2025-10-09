@@ -393,14 +393,15 @@ async function getOfflineQueue() {
         for (const storeName of stores) {
             const tx = db.transaction([storeName], 'readonly');
             const store = tx.objectStore(storeName);
-            const index = store.index('synced');
             
-            // Obtener todos los registros donde synced = false
-            const request = index.getAll(IDBKeyRange.only(false));
+            // Obtener TODOS los registros y filtrar manualmente
+            const request = store.getAll();
 
             await new Promise((resolve, reject) => {
                 request.onsuccess = async () => {
-                    const data = request.result || [];
+                    const allData = request.result || [];
+                    // Filtrar solo los NO sincronizados
+                    const data = allData.filter(item => item.synced === false);
                     
                     // Descifrar si es necesario
                     if (CRYPTO.isEnabled && data.length > 0) {
