@@ -105,8 +105,9 @@ async function syncOfflineData() {
     SYNC.totalFailed = 0;
 
     try {
-        // Verificar conexión real
-        const hasConnection = await checkRealConnection();
+        // Verificar conexión real (iOS: usar navigator.onLine para evitar HEAD bloqueado)
+        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const hasConnection = isIOS ? navigator.onLine : await checkRealConnection();
         if (!hasConnection) {
             console.log('📵 Sin conexión real - cancelando sincronización');
             SYNC.isRunning = false;
@@ -167,7 +168,10 @@ async function syncOfflineData() {
         }
 
         if (SYNC.totalFailed > 0) {
-            showWarning(`⚠️ ${SYNC.totalFailed} operaciones fallaron - se reintentarán`);
+            const firstErr = (window.__lastSyncErrors && window.__lastSyncErrors[0]) || {};
+            const errCode = firstErr.code || firstErr.name || '';
+            const errMsg = firstErr.message || '';
+            showWarning(`⚠️ ${SYNC.totalFailed} operaciones fallaron - se reintentarán${errCode || errMsg ? `\n(${errCode} ${errMsg})` : ''}`);
         }
 
         SYNC.lastSync = new Date();
@@ -441,6 +445,16 @@ async function syncPagos(pagos) {
             console.error(`   temp_id: ${pago.temp_id}`);
             console.error(`   Stack:`, error.stack);
             SYNC.totalFailed++;
+            // Guardar último error para UI
+            try {
+                window.__lastSyncErrors = window.__lastSyncErrors || [];
+                window.__lastSyncErrors.push({
+                    code: error.code,
+                    name: error.name,
+                    message: error.message,
+                    temp_id: pago.temp_id
+                });
+            } catch {}
             
             try {
                 await incrementSyncAttempts('offline_pagos', pago.temp_id, error.message);
