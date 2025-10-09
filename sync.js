@@ -359,6 +359,43 @@ async function syncPagos(pagos) {
                 error = retry.error;
             }
 
+            // Tratar duplicado por idempotency como éxito (varias formas de error)
+            if (error && (
+                error.code === '23505' ||
+                /idempotency_key/i.test(error.message || '') ||
+                /duplicate key|unique constraint/i.test(error.message || '') ||
+                /idempotency_key/i.test(error.details || '')
+            )) {
+                console.log(`   ✅ Pago ya sincronizado (idempotency dup) → ${idempotency}`);
+                await markAsSynced('offline_pagos', pago.temp_id);
+                SYNC.totalSynced++;
+                continue;
+            }
+
+            // Fallback iOS: intentar insertar con payload mínimo si sigue fallando
+            if (error) {
+                console.warn('⚠️ Insert falló, probando payload mínimo (iOS fallback)...', error);
+                const minimalData = {
+                    panel_id: pagoData.panel_id,
+                    cliente_id: pagoData.cliente_id,
+                    prestamo_id: pagoData.prestamo_id,
+                    cobrador_id: pagoData.cobrador_id,
+                    created_by: pagoData.created_by,
+                    monto: pagoData.monto,
+                    fecha_pago: pagoData.fecha_pago,
+                    estado: pagoData.estado
+                };
+                const retry2 = await APP.supabase.from('pagos').insert(minimalData);
+                if (!retry2.error) {
+                    console.log('   ✅ Insert mínimo OK (iOS fallback)');
+                    await markAsSynced('offline_pagos', pago.temp_id);
+                    SYNC.totalSynced++;
+                    continue;
+                } else {
+                    error = retry2.error;
+                }
+            }
+
             if (error) {
                 console.error(`   ❌ Error Supabase:`, error);
                 // Si es error de idempotency key duplicada, considerar como éxito
