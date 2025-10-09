@@ -1,5 +1,5 @@
 // Service Worker para App Cobrador - Soporte offline completo
-const CACHE_NAME = 'cobrador-cache-v4.4';
+const CACHE_NAME = 'cobrador-cache-v4.5';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -11,6 +11,7 @@ const ASSETS_TO_CACHE = [
     './db.js',              // 🆕 IndexedDB wrapper
     './crypto.js',          // 🆕 Cifrado
     './sync.js',            // 🆕 Sincronización
+    './iphone-debug.js',    // 🍎 Diagnóstico iPhone
     'https://unpkg.com/@supabase/supabase-js@2'
 ];
 

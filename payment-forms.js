@@ -392,6 +392,13 @@ async function registerPaymentForLoan(loanId, clientId, amount) {
             console.log('📵 Guardando pago offline en IndexedDB...');
             console.log('📝 Datos del pago:', paymentData);
             
+            // 🍎 DIAGNÓSTICO IPHONE
+            if (typeof window.diagnosticarPagoiPhone === 'function') {
+                console.log('\n🍎 EJECUTANDO DIAGNÓSTICO IPHONE...\n');
+                const diagnostico = window.diagnosticarPagoiPhone(paymentData);
+                console.log('🍎 Resultado diagnóstico:', diagnostico);
+            }
+            
             try {
                 const temp_id = await saveOffline('offline_pagos', paymentData);
                 console.log('✅ Pago guardado offline con temp_id:', temp_id);
