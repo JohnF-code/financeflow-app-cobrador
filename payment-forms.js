@@ -344,6 +344,7 @@ async function registerPaymentForLoan(loanId, clientId, amount) {
             cliente_id: clientId,
             prestamo_id: loanId,
             cobrador_id: APP.collectorContext.collectorId,
+            created_by: APP.collectorContext.userId || APP.collectorContext.collectorId,
             monto: amount,
             fecha_pago: getLocalToday(),
             hora_pago: new Date().toTimeString().split(' ')[0],

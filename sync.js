@@ -323,6 +323,13 @@ async function syncPagos(pagos) {
             }
 
             // Preparar datos para Supabase (normalizados iOS)
+            // Fallbacks si APP.collectorContext no está listo en iOS (usar datos del propio pago)
+            const panelId = pago.panel_id || (APP.collectorContext && APP.collectorContext.panelId);
+            const cobradorId = pago.cobrador_id || (APP.collectorContext && APP.collectorContext.collectorId);
+            const createdBy = pago.created_by || (APP.collectorContext && (APP.collectorContext.userId || APP.collectorContext.collectorId)) || cobradorId;
+            if (!panelId || !cobradorId) {
+                console.warn('⚠️ panel_id/cobrador_id ausentes; usando valores del pago:', { panelId, cobradorId, pago_panel: pago.panel_id, pago_cobrador: pago.cobrador_id });
+            }
             const normalizedMonto = Number.isFinite(Number(pago.monto)) ? Number(pago.monto) : 0;
             const normalizedFecha = typeof pago.fecha_pago === 'string' ? pago.fecha_pago : (new Date(pago.fecha_pago)).toISOString().split('T')[0];
             const normalizedHora = typeof pago.hora_pago === 'string' ? pago.hora_pago : (new Date()).toTimeString().split(' ')[0];
@@ -331,11 +338,11 @@ async function syncPagos(pagos) {
             const idempotency = pago.idempotency_key || pago.temp_id || `${APP.collectorContext.collectorId}-${pago.prestamo_id}-${pago.timestamp || Date.now()}`;
 
             const pagoData = {
-                panel_id: APP.collectorContext.panelId,
+                panel_id: panelId,
                 cliente_id: pago.cliente_id,
                 prestamo_id: pago.prestamo_id,
-                cobrador_id: APP.collectorContext.collectorId,
-                created_by: APP.collectorContext.userId || APP.collectorContext.collectorId,
+                cobrador_id: cobradorId,
+                created_by: createdBy,
                 monto: normalizedMonto,
                 fecha_pago: normalizedFecha,
                 hora_pago: normalizedHora,
@@ -344,6 +351,7 @@ async function syncPagos(pagos) {
                 lng: normalizedLng,
                 idempotency_key: idempotency
             };
+            console.log('   Datos normalizados/fallback:', { panel_id: pagoData.panel_id, cobrador_id: pagoData.cobrador_id, created_by: pagoData.created_by, idempotency: pagoData.idempotency_key });
 
             // Insertar en Supabase
             console.log(`   🔄 Insertando en Supabase...`);
