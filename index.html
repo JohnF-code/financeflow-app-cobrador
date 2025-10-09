@@ -2394,7 +2394,7 @@
                                     </div>
                                     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
                                         <button type="button" onclick="hideCreateCreditForm()" class="btn-secondary">Cancelar</button>
-                                        <button type="button" onclick="createCredit({min_cuotas:${minCuotas},max_cuotas:${maxCuotas},cuota_minima:${cuotaMinima}})" class="btn-primary">Crear Crédito</button>
+                                        <button id="createCreditBtn" type="button" onclick="createCredit({min_cuotas:${minCuotas},max_cuotas:${maxCuotas},cuota_minima:${cuotaMinima}})" class="btn-primary">Crear Crédito</button>
                                     </div>
                                 </form>
                             </div>
@@ -2404,18 +2404,21 @@
                     // Buscar en cache por nombre/cedula
                     const input = document.getElementById('clientSearchInput');
                     const results = document.getElementById('searchResults');
+                    const normalize = (v) => (v == null ? '' : String(v)).toLowerCase();
+                    const runFilter = () => {
+                        const q = normalize(input.value);
+                        const filtered = (clientes || []).filter(c => normalize(c.nombre).includes(q) || normalize(c.cedula).includes(q)).slice(0, 20);
+                        results.innerHTML = filtered.map(c => `
+                            <div onclick=\"selectClientForCredit('${c.id}','${(normalize(c.nombre)||'').replace(/'/g, "\\'")}','${normalize(c.cedula)||''}')\" 
+                                style=\"padding:10px;border-bottom:1px solid #eee;cursor:pointer;\">
+                                <div style=\"font-weight:600;\">${normalize(c.nombre)}</div>
+                                <div style=\"font-size:12px;color:#666;\">🆔 ${normalize(c.cedula)}</div>
+                            </div>
+                        `).join('');
+                    };
                     if (input && results) {
-                        input.addEventListener('input', () => {
-                            const q = (input.value || '').toLowerCase();
-                            const filtered = (clientes || []).filter(c => (c.nombre||'').toLowerCase().includes(q) || (c.cedula||'').toLowerCase().includes(q)).slice(0, 20);
-                            results.innerHTML = filtered.map(c => `
-                                <div onclick=\"selectClientForCredit('${c.id}','${(c.nombre||'').replace(/'/g, "\\'")}','${c.cedula||''}')\" 
-                                    style=\"padding:10px;border-bottom:1px solid #eee;cursor:pointer;\">
-                                    <div style=\"font-weight:600;\">${c.nombre||''}</div>
-                                    <div style=\"font-size:12px;color:#666;\">🆔 ${c.cedula||''}</div>
-                                </div>
-                            `).join('');
-                        });
+                        ['input','keyup','change','search'].forEach(evt => input.addEventListener(evt, runFilter));
+                        runFilter();
                     }
 
                     return; // No continuar con flujo online
@@ -2650,12 +2653,21 @@
                         return;
                     }
                     
-                    const { data: results } = await APP.supabase
-                        .from('clients')
-                        .select('id, nombre, cedula')
-                        .eq('panel_id', APP.collectorContext.panelId)
-                        .or(`nombre.ilike.%${term}%,cedula.ilike.%${term}%`)
-                        .limit(5);
+                    // Si offline, buscar en cache
+                    let results;
+                    if (!APP.isOnline) {
+                        const normalize = (v) => (v == null ? '' : String(v)).toLowerCase();
+                        const clientesCache = await loadFromCache('clientes_cache');
+                        results = (clientesCache || []).filter(c => normalize(c.nombre).includes(term.toLowerCase()) || normalize(c.cedula).includes(term.toLowerCase())).slice(0, 5);
+                    } else {
+                        const resp = await APP.supabase
+                            .from('clients')
+                            .select('id, nombre, cedula')
+                            .eq('panel_id', APP.collectorContext.panelId)
+                            .or(`nombre.ilike.%${term}%,cedula.ilike.%${term}%`)
+                            .limit(5);
+                        results = resp.data;
+                    }
                     
                     const resultsHTML = (results || []).map(c => `
                         <div onclick="selectClientForCredit('${c.id}', '${c.nombre.replace(/'/g, "\\'")}', '${c.cedula}')" 
@@ -2698,9 +2710,13 @@
         
         // Create credit
         async function createCredit(settings) {
-            const submitBtn = document.querySelector('#newCreditForm button[type="submit"]');
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Creando...';
+            const submitBtn = document.getElementById('createCreditBtn') 
+                || document.querySelector('#newCreditForm .btn-primary') 
+                || document.querySelector('#newCreditForm button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Creando...';
+            }
             
             try {
                 const clientId = document.getElementById('creditClient').value;
