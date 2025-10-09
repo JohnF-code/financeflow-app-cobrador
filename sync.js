@@ -334,6 +334,40 @@ async function syncPagos(pagos) {
             if (!panelId || !cobradorId) {
                 console.warn('⚠️ panel_id/cobrador_id ausentes; usando valores del pago:', { panelId, cobradorId, pago_panel: pago.panel_id, pago_cobrador: pago.cobrador_id });
             }
+            // Derivar cliente_id si viene nulo (iOS) usando cache o Supabase
+            let clienteId = pago.cliente_id;
+            if (!clienteId && pago.prestamo_id) {
+                try {
+                    const prestamosCache = await loadFromCache('prestamos_detalle_cache');
+                    const prestamoCached = prestamosCache?.find(p => p.id === pago.prestamo_id);
+                    if (prestamoCached?.cliente_id) {
+                        clienteId = prestamoCached.cliente_id;
+                        console.log('   🧩 cliente_id derivado de cache:', clienteId);
+                    }
+                } catch (e) {
+                    console.warn('   ⚠️ No se pudo leer cache prestamos_detalle_cache:', e);
+                }
+                if (!clienteId) {
+                    try {
+                        const { data: loanRow } = await APP.supabase
+                            .from('prestamos')
+                            .select('cliente_id')
+                            .eq('id', pago.prestamo_id)
+                            .single();
+                        if (loanRow?.cliente_id) {
+                            clienteId = loanRow.cliente_id;
+                            console.log('   🧩 cliente_id derivado de Supabase:', clienteId);
+                        }
+                    } catch (e) {
+                        console.warn('   ⚠️ No se pudo derivar cliente_id desde Supabase:', e?.message || e);
+                    }
+                }
+            }
+
+            if (!clienteId) {
+                throw new Error('cliente_id ausente');
+            }
+
             const normalizedMonto = Number.isFinite(Number(pago.monto)) ? Number(pago.monto) : 0;
             const normalizedFecha = typeof pago.fecha_pago === 'string' ? pago.fecha_pago : (new Date(pago.fecha_pago)).toISOString().split('T')[0];
             const normalizedHora = typeof pago.hora_pago === 'string' ? pago.hora_pago : (new Date()).toTimeString().split(' ')[0];
