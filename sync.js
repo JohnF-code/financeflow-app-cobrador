@@ -322,26 +322,42 @@ async function syncPagos(pagos) {
                 continue;
             }
 
-            // Preparar datos para Supabase
+            // Preparar datos para Supabase (normalizados iOS)
+            const normalizedMonto = Number.isFinite(Number(pago.monto)) ? Number(pago.monto) : 0;
+            const normalizedFecha = typeof pago.fecha_pago === 'string' ? pago.fecha_pago : (new Date(pago.fecha_pago)).toISOString().split('T')[0];
+            const normalizedHora = typeof pago.hora_pago === 'string' ? pago.hora_pago : (new Date()).toTimeString().split(' ')[0];
+            const normalizedLat = (pago.lat === undefined || Number.isNaN(pago.lat)) ? null : pago.lat;
+            const normalizedLng = (pago.lng === undefined || Number.isNaN(pago.lng)) ? null : pago.lng;
+            const idempotency = pago.idempotency_key || pago.temp_id || `${APP.collectorContext.collectorId}-${pago.prestamo_id}-${pago.timestamp || Date.now()}`;
+
             const pagoData = {
                 panel_id: APP.collectorContext.panelId,
                 cliente_id: pago.cliente_id,
                 prestamo_id: pago.prestamo_id,
                 cobrador_id: APP.collectorContext.collectorId,
-                monto: pago.monto,
-                fecha_pago: pago.fecha_pago,
-                hora_pago: pago.hora_pago,
+                created_by: APP.collectorContext.userId || APP.collectorContext.collectorId,
+                monto: normalizedMonto,
+                fecha_pago: normalizedFecha,
+                hora_pago: normalizedHora,
                 estado: pago.estado || 'registrado',
-                lat: pago.lat || null,
-                lng: pago.lng || null,
-                idempotency_key: pago.idempotency_key || null
+                lat: normalizedLat,
+                lng: normalizedLng,
+                idempotency_key: idempotency
             };
 
             // Insertar en Supabase
             console.log(`   🔄 Insertando en Supabase...`);
-            const { error } = await APP.supabase
+            let { error } = await APP.supabase
                 .from('pagos')
                 .insert(pagoData);
+
+            // Reintento con created_by forzado si hay error RLS/autorización
+            if (error && (error.code === 'PGRST301' || /rls|policy|permission/i.test(error.message || ''))) {
+                console.warn('⚠️ Reintentando pago con created_by reforzado...');
+                const retryData = { ...pagoData, created_by: APP.collectorContext.userId || APP.collectorContext.collectorId };
+                const retry = await APP.supabase.from('pagos').insert(retryData);
+                error = retry.error;
+            }
 
             if (error) {
                 console.error(`   ❌ Error Supabase:`, error);
@@ -516,18 +532,18 @@ async function updateCacheFromSupabase() {
         }
 
         // Actualizar cache de settings del panel
-        const { data: settings } = await APP.supabase
+        const { data: settingsRows } = await APP.supabase
             .from('settings')
             .select('*')
-            .eq('panel_id', APP.collectorContext.panelId)
-            .single();
+            .eq('panel_id', APP.collectorContext.panelId);
 
-        if (settings) {
-            await saveToCache('panel_settings_cache', [{
-                ...settings,
+        if (Array.isArray(settingsRows) && settingsRows.length > 0) {
+            const mapped = settingsRows.map(s => ({
+                ...s,
                 panel_id: APP.collectorContext.panelId,
                 ultima_actualizacion: Date.now()
-            }]);
+            }));
+            await saveToCache('panel_settings_cache', mapped);
         }
 
         // 🆕 Actualizar cache de préstamos detallados (para pagos/recogidas offline)
