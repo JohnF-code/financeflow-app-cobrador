@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v3.0 (IndexedDB)</title>
-    <!-- Cache Buster: v3.0 -->
+    <title>Cobrador App - v4.0 (Offline Fixed)</title>
+    <!-- Cache Buster: v4.0.<?php echo time(); ?> -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js"></script>
-    <script src="crypto.js"></script>
-    <script src="sync.js"></script>
+    <script src="db.js?v=4.0"></script>
+    <script src="crypto.js?v=4.0"></script>
+    <script src="sync.js?v=4.0"></script>
     <style display="none">
         * {
             margin: 0;
@@ -671,9 +671,9 @@
 
     <!-- Scripts -->
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <script src="config.js"></script>
-    <script src="search-pagination.js"></script>
-    <script src="payment-forms.js"></script>
+    <script src="config.js?v=4.0"></script>
+    <script src="search-pagination.js?v=4.0"></script>
+    <script src="payment-forms.js?v=4.0"></script>
     <script>
         // Global app state
         const APP = {
