@@ -2153,13 +2153,18 @@
             submitBtn.textContent = 'Guardando...';
 
             try {
+                // 🆕 FORZAR verificación de conexión ANTES de cualquier cosa
+                const isReallyOffline = !navigator.onLine;
+                APP.isOnline = navigator.onLine; // Actualizar siempre
+                
                 // 🆕 Debug crítico
                 console.log('==========================================');
                 console.log('🚀 createClient() INICIADO');
                 console.log('📊 Estado de conexión:');
                 console.log('  navigator.onLine:', navigator.onLine);
-                console.log('  APP.isOnline:', APP.isOnline);
-                console.log('  Condición (!APP.isOnline || !navigator.onLine):', (!APP.isOnline || !navigator.onLine));
+                console.log('  APP.isOnline (ACTUALIZADO):', APP.isOnline);
+                console.log('  isReallyOffline:', isReallyOffline);
+                console.log('  Condición (isReallyOffline):', isReallyOffline);
                 
                 // 🆕 Verificar que IndexedDB esté listo
                 console.log('🔍 Verificando IndexedDB...');
@@ -2215,8 +2220,9 @@
                     clientData.lng = location.longitude;
                 }
 
-                // 🆕 Check if online
-                if (!APP.isOnline || !navigator.onLine) {
+                // 🆕 Check if REALLY offline
+                if (isReallyOffline) {
+                    console.log('🔴 MODO OFFLINE CONFIRMADO - Guardando en IndexedDB');
                     // Save offline using IndexedDB
                     console.log('📵 Offline - guardando cliente en IndexedDB...');
                     console.log('📝 Datos del cliente:', clientData);

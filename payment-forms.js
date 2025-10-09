@@ -308,13 +308,22 @@ async function registerPaymentForLoan(loanId, clientId, amount) {
     btn.textContent = 'Registrando...';
     
     try {
-        // 🆕 PRIMERO verificar estado de conexión ANTES de hacer cualquier cosa
+        // 🆕 FORZAR verificación de conexión
         const isOffline = !navigator.onLine;
+        APP.isOnline = navigator.onLine; // SIEMPRE actualizar
         
-        // Actualizar APP.isOnline si es necesario
-        if (isOffline && APP.isOnline) {
-            APP.isOnline = false;
-            updateConnectionStatus();
+        console.log('==========================================');
+        console.log('💳 registerPaymentForLoan() INICIADO');
+        console.log('📊 Estado de conexión:');
+        console.log('  navigator.onLine:', navigator.onLine);
+        console.log('  APP.isOnline (ACTUALIZADO):', APP.isOnline);
+        console.log('  isOffline:', isOffline);
+        console.log('==========================================');
+        
+        if (isOffline) {
+            console.log('🔴 MODO OFFLINE CONFIRMADO - Usando flujo offline');
+        } else {
+            console.log('🟢 MODO ONLINE CONFIRMADO - Usando flujo online');
         }
         
         // Generate idempotency key to prevent duplicates
@@ -350,18 +359,7 @@ async function registerPaymentForLoan(loanId, clientId, amount) {
 
         // 🆕 Check if offline
         if (isOffline) {
-            // 🆕 Debug crítico
-            console.log('==========================================');
-            console.log('💳 PAGO OFFLINE DETECTADO');
-            console.log('📊 Estado de conexión:');
-            console.log('  navigator.onLine:', navigator.onLine);
-            console.log('  APP.isOnline:', APP.isOnline);
-            console.log('  DB.isSupported:', DB.isSupported);
-            console.log('  DB.isReady:', DB.isReady);
-            console.log('  DB.instance:', DB.instance ? 'Existe' : 'NULL');
-            
-            // 🆕 Validar monto vs saldo del cache
-            console.log('📵 Offline - validando pago con datos del cache...');
+            console.log('📵 Validando pago con datos del cache...');
             const cachedLoans = await loadFromCache('prestamos_detalle_cache');
             const cachedLoan = cachedLoans?.find(l => l.id === loanId);
             
