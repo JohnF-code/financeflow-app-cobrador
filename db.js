@@ -394,7 +394,9 @@ async function getOfflineQueue() {
             const tx = db.transaction([storeName], 'readonly');
             const store = tx.objectStore(storeName);
             const index = store.index('synced');
-            const request = index.getAll(false); // synced = false
+            
+            // Obtener todos los registros donde synced = false
+            const request = index.getAll(IDBKeyRange.only(false));
 
             await new Promise((resolve, reject) => {
                 request.onsuccess = async () => {
