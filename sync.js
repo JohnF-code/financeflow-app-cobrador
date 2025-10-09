@@ -343,7 +343,7 @@ async function syncPagos(pagos) {
 
             const pagoData = {
                 panel_id: panelId,
-                cliente_id: pago.cliente_id,
+                cliente_id: clienteId,
                 prestamo_id: pago.prestamo_id,
                 cobrador_id: cobradorId,
                 created_by: createdBy,
