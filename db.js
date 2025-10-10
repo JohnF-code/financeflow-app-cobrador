@@ -218,9 +218,16 @@ async function saveToCache(storeName, data) {
 
             // Guardar nuevos datos
             for (const item of items) {
+                // 🍎 NO cifrar datos de cache (solo offline operations)
                 // Cifrar si es necesario
-                const encrypted = CRYPTO.isEnabled ? await encryptObject(item) : item;
+                const isCacheStore = storeName.includes('_cache');
+                const shouldEncrypt = CRYPTO.isEnabled && !isCacheStore;
+                const encrypted = shouldEncrypt ? await encryptObject(item) : item;
                 store.put(encrypted);
+            }
+            
+            if (storeName.includes('_cache')) {
+                console.log(`🔓 Cache guardado SIN cifrado: ${storeName}`);
             }
         });
     } catch (error) {
@@ -257,8 +264,12 @@ async function loadFromCache(storeName) {
                 console.log(`🔍 getAll() success, items raw: ${data.length}`);
                 console.log(`🔍 CRYPTO.isEnabled: ${CRYPTO.isEnabled}`);
                 
+                // 🍎 NO descifrar datos de cache (solo offline operations)
+                const isCacheStore = storeName.includes('_cache');
+                const shouldDecrypt = CRYPTO.isEnabled && !isCacheStore;
+                
                 // Descifrar si es necesario
-                if (CRYPTO.isEnabled && data.length > 0) {
+                if (shouldDecrypt && data.length > 0) {
                     console.log(`🔍 Intentando descifrar ${data.length} items...`);
                     try {
                         const decrypted = await Promise.all(
@@ -273,7 +284,11 @@ async function loadFromCache(storeName) {
                         resolve(data);
                     }
                 } else {
-                    console.log(`📂 Cache leído sin cifrado: ${storeName} (${data.length} items)`);
+                    if (isCacheStore) {
+                        console.log(`🔓 Cache leído SIN cifrado: ${storeName} (${data.length} items)`);
+                    } else {
+                        console.log(`📂 Cache leído sin cifrado: ${storeName} (${data.length} items)`);
+                    }
                     resolve(data);
                 }
             };
