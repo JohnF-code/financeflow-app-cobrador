@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v4.8 (iPhone Modal Fix)</title>
-    <!-- Cache Buster: v4.8.<?php echo time(); ?> -->
+    <title>Cobrador App - v4.9 (iPhone Debug)</title>
+    <!-- Cache Buster: v4.9.<?php echo time(); ?> -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js?v=4.8"></script>
-    <script src="crypto.js?v=4.8"></script>
-    <script src="sync.js?v=4.8"></script>
-    <script src="iphone-debug.js?v=4.8"></script>
+    <script src="db.js?v=4.9"></script>
+    <script src="crypto.js?v=4.9"></script>
+    <script src="sync.js?v=4.9"></script>
+    <script src="iphone-debug.js?v=4.9"></script>
     <style display="none">
         * {
             margin: 0;
@@ -2501,18 +2501,29 @@
                             searchBox.appendChild(searchResults);
                             selectorView.appendChild(searchBox);
                             
-                            // Lista de clientes sin crédito
-                            if (clientsWithoutCredit && clientsWithoutCredit.length > 0) {
+                            // Lista de clientes (mostrar TODOS si no hay sin crédito)
+                            console.log('🍎 Clientes sin crédito:', clientsWithoutCredit?.length || 0);
+                            console.log('🍎 Total clientes:', clientes?.length || 0);
+                            
+                            const clientsToShow = (clientsWithoutCredit && clientsWithoutCredit.length > 0) 
+                                ? clientsWithoutCredit 
+                                : (clientes || []).slice(0, 10); // Mostrar primeros 10 si no hay filtro
+                            
+                            console.log('🍎 Clientes a mostrar:', clientsToShow.length);
+                            
+                            if (clientsToShow && clientsToShow.length > 0) {
                                 const clientsSection = document.createElement('div');
                                 clientsSection.style.cssText = 'margin-bottom:20px;';
                                 const clientsTitle = document.createElement('h4');
-                                clientsTitle.textContent = 'Clientes disponibles';
+                                clientsTitle.textContent = clientsWithoutCredit && clientsWithoutCredit.length > 0 
+                                    ? 'Clientes sin crédito activo' 
+                                    : 'Todos los clientes';
                                 clientsTitle.style.cssText = 'margin:0 0 10px;font-size:14px;color:#666;font-weight:600;';
                                 clientsSection.appendChild(clientsTitle);
                                 
-                                clientsWithoutCredit.forEach(c => {
+                                clientsToShow.forEach(c => {
                                     const clientDiv = document.createElement('div');
-                                    clientDiv.style.cssText = 'padding:12px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer;margin-bottom:8px;';
+                                    clientDiv.style.cssText = 'padding:12px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer;margin-bottom:8px;background:white;';
                                     clientDiv.onclick = () => selectClientForCredit(c.id, c.nombre||'', c.cedula||'');
                                     
                                     const nameDiv = document.createElement('div');
@@ -2528,6 +2539,13 @@
                                     clientsSection.appendChild(clientDiv);
                                 });
                                 selectorView.appendChild(clientsSection);
+                                console.log('🍎 Lista de clientes agregada al modal');
+                            } else {
+                                console.warn('🍎 No hay clientes para mostrar');
+                                const noClientsMsg = document.createElement('div');
+                                noClientsMsg.textContent = 'No hay clientes disponibles. Usa el buscador arriba.';
+                                noClientsMsg.style.cssText = 'padding:20px;text-align:center;color:#999;';
+                                selectorView.appendChild(noClientsMsg);
                             }
                             
                             container.appendChild(selectorView);
@@ -2669,6 +2687,11 @@
                             document.body.appendChild(overlay);
                             
                             console.log('✅✅✅ Modal iPhone insertado con DOM puro (sin template literals)');
+                            
+                            // Alert de debug para iPhone
+                            if (isIOS) {
+                                alert('iPhone v4.8\nModal creado\nClientes: ' + (clientes?.length || 0) + '\nSin crédito: ' + (clientsWithoutCredit?.length || 0) + '\nA mostrar: ' + clientsToShow.length);
+                            }
                             
                             // Configurar event listeners para iPhone inmediatamente
                             setTimeout(() => {
