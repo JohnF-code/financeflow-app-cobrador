@@ -2447,12 +2447,12 @@
                     console.log('📝 Modal HTML generado, longitud total:', modalHTML.length);
                     console.log('🔍 Intentando insertar modal en DOM...');
                     
-                    // 🍎 iPhone: crear modal usando DOM API en vez de insertAdjacentHTML
+                    // 🍎 iPhone: crear modal SIN template literals (Safari los trunca)
                     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
                     if (isIOS) {
-                        console.log('🍎 iPhone detectado: construyendo modal con DOM API...');
+                        console.log('🍎 iPhone detectado: construyendo modal elemento por elemento...');
                         try {
-                            // Crear elementos del modal programáticamente
+                            // Overlay
                             const overlay = document.createElement('div');
                             overlay.id = 'creditModal';
                             overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;';
@@ -2467,73 +2467,203 @@
                             closeBtn.style.cssText = 'position:absolute;top:10px;right:10px;background:#ef4444;color:white;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;';
                             container.appendChild(closeBtn);
                             
-                            // Selector de clientes
+                            // Selector view
                             const selectorView = document.createElement('div');
                             selectorView.id = 'clientSelectorView';
-                            selectorView.innerHTML = `
-                                <h3 style="margin:0 0 15px;color:#333;">Agregar Crédito</h3>
-                                <div style="margin-bottom:20px;">
-                                    <label style="display:block;margin-bottom:8px;font-weight:600;color:#374151;font-size:14px;">Buscar cliente</label>
-                                    <input type="text" id="clientSearchInput" placeholder="Cédula o nombre del cliente" 
-                                        style="width:100%;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:15px;">
-                                    <div id="searchResults" style="margin-top:10px;max-height:200px;overflow-y:auto;"></div>
-                                </div>
-                                ${withoutCreditHTML ? `
-                                    <div style="margin-bottom:20px;">
-                                        <h4 style="margin:0 0 10px;font-size:14px;color:#666;font-weight:600;">Clientes disponibles</h4>
-                                        ${withoutCreditHTML}
-                                    </div>
-                                ` : '<div style="padding:20px;text-align:center;color:#666;">Usa el buscador para encontrar clientes</div>'}
-                            `;
+                            
+                            const title = document.createElement('h3');
+                            title.textContent = 'Agregar Crédito';
+                            title.style.cssText = 'margin:0 0 15px;color:#333;';
+                            selectorView.appendChild(title);
+                            
+                            const searchBox = document.createElement('div');
+                            searchBox.style.cssText = 'margin-bottom:20px;';
+                            const searchLabel = document.createElement('label');
+                            searchLabel.textContent = 'Buscar cliente';
+                            searchLabel.style.cssText = 'display:block;margin-bottom:8px;font-weight:600;color:#374151;font-size:14px;';
+                            searchBox.appendChild(searchLabel);
+                            
+                            const searchInput = document.createElement('input');
+                            searchInput.type = 'text';
+                            searchInput.id = 'clientSearchInput';
+                            searchInput.placeholder = 'Cédula o nombre del cliente';
+                            searchInput.style.cssText = 'width:100%;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:15px;';
+                            searchBox.appendChild(searchInput);
+                            
+                            const searchResults = document.createElement('div');
+                            searchResults.id = 'searchResults';
+                            searchResults.style.cssText = 'margin-top:10px;max-height:200px;overflow-y:auto;';
+                            searchBox.appendChild(searchResults);
+                            selectorView.appendChild(searchBox);
+                            
+                            // Lista de clientes sin crédito
+                            if (clientsWithoutCredit && clientsWithoutCredit.length > 0) {
+                                const clientsSection = document.createElement('div');
+                                clientsSection.style.cssText = 'margin-bottom:20px;';
+                                const clientsTitle = document.createElement('h4');
+                                clientsTitle.textContent = 'Clientes disponibles';
+                                clientsTitle.style.cssText = 'margin:0 0 10px;font-size:14px;color:#666;font-weight:600;';
+                                clientsSection.appendChild(clientsTitle);
+                                
+                                clientsWithoutCredit.forEach(c => {
+                                    const clientDiv = document.createElement('div');
+                                    clientDiv.style.cssText = 'padding:12px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer;margin-bottom:8px;';
+                                    clientDiv.onclick = () => selectClientForCredit(c.id, c.nombre||'', c.cedula||'');
+                                    
+                                    const nameDiv = document.createElement('div');
+                                    nameDiv.textContent = c.nombre || '';
+                                    nameDiv.style.cssText = 'font-weight:600;color:#333;margin-bottom:2px;';
+                                    clientDiv.appendChild(nameDiv);
+                                    
+                                    const cedulaDiv = document.createElement('div');
+                                    cedulaDiv.textContent = '🆔 ' + (c.cedula || '');
+                                    cedulaDiv.style.cssText = 'font-size:13px;color:#666;';
+                                    clientDiv.appendChild(cedulaDiv);
+                                    
+                                    clientsSection.appendChild(clientDiv);
+                                });
+                                selectorView.appendChild(clientsSection);
+                            }
+                            
                             container.appendChild(selectorView);
                             
-                            // Formulario de crédito
+                            // Formulario (hidden)
                             const creditForm = document.createElement('form');
                             creditForm.id = 'newCreditForm';
                             creditForm.style.cssText = 'display:none;';
-                            creditForm.innerHTML = `
-                                <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-                                    <button type="button" onclick="showClientSelector()" style="background:none;border:none;font-size:20px;cursor:pointer;">←</button>
-                                    <h3 style="margin:0;color:#333;flex:1;">Crear Crédito</h3>
-                                </div>
-                                <div style="background:#f3f4f6;padding:12px;border-radius:8px;margin-bottom:10px;">
-                                    <div style="font-size:13px;color:#666;">Cliente:</div>
-                                    <div id="selectedClientName" style="font-weight:600;color:#333;"></div>
-                                    <div id="selectedClientCedula" style="font-size:13px;color:#666;"></div>
-                                </div>
-                                <input type="hidden" id="creditClient" required>
-                                <div style="margin-bottom:12px;">
-                                    <label style="display:block;margin-bottom:5px;font-weight:600;color:#374151;">Monto *</label>
-                                    <input type="text" inputmode="numeric" id="creditAmount" required 
-                                        placeholder="500000" 
-                                        style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;">
-                                    <small style="color:#666;font-size:12px;">Mínimo: $50,000</small>
-                                </div>
-                                <div style="margin-bottom:12px;">
-                                    <label style="display:block;margin-bottom:5px;font-weight:600;color:#374151;">Cuota diaria *</label>
-                                    <input type="text" inputmode="numeric" id="creditDailyQuota" required 
-                                        placeholder="20000" 
-                                        style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;">
-                                    <small style="color:#666;font-size:12px;">Mínimo: $${cuotaMinima.toLocaleString()}</small>
-                                </div>
-                                <div style="margin-bottom:12px;">
-                                    <label style="display:block;margin-bottom:5px;font-weight:600;color:#374151;">Días</label>
-                                    <div id="creditCalculatedDays" style="padding:10px;background:#e0e7ff;border-radius:8px;font-weight:bold;text-align:center;">-</div>
-                                </div>
-                                <div style="margin-bottom:12px;">
-                                    <label style="display:block;margin-bottom:5px;font-weight:600;color:#374151;">Total a pagar</label>
-                                    <div id="creditTotal" style="padding:10px;background:#dcfce7;border-radius:8px;font-weight:bold;text-align:center;">-</div>
-                                </div>
-                                <div style="display:flex;gap:10px;margin-top:16px;">
-                                    <button type="button" onclick="hideCreateCreditForm()" style="flex:1;padding:12px;background:#6c757d;color:white;border:none;border-radius:8px;cursor:pointer;">Cancelar</button>
-                                    <button id="createCreditBtn" type="button" onclick="createCredit({min_cuotas:${minCuotas},max_cuotas:${maxCuotas},cuota_minima:${cuotaMinima},interes_base:20})" style="flex:1;padding:12px;background:#10b981;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Crear Crédito</button>
-                                </div>
-                            `;
+                            
+                            // Header con back button
+                            const formHeader = document.createElement('div');
+                            formHeader.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:10px;';
+                            const backBtn = document.createElement('button');
+                            backBtn.type = 'button';
+                            backBtn.textContent = '←';
+                            backBtn.onclick = showClientSelector;
+                            backBtn.style.cssText = 'background:none;border:none;font-size:20px;cursor:pointer;';
+                            formHeader.appendChild(backBtn);
+                            const formTitle = document.createElement('h3');
+                            formTitle.textContent = 'Crear Crédito';
+                            formTitle.style.cssText = 'margin:0;color:#333;flex:1;';
+                            formHeader.appendChild(formTitle);
+                            creditForm.appendChild(formHeader);
+                            
+                            // Cliente seleccionado box
+                            const selectedBox = document.createElement('div');
+                            selectedBox.style.cssText = 'background:#f3f4f6;padding:12px;border-radius:8px;margin-bottom:10px;';
+                            const selectedLabel = document.createElement('div');
+                            selectedLabel.textContent = 'Cliente:';
+                            selectedLabel.style.cssText = 'font-size:13px;color:#666;';
+                            selectedBox.appendChild(selectedLabel);
+                            const selectedName = document.createElement('div');
+                            selectedName.id = 'selectedClientName';
+                            selectedName.style.cssText = 'font-weight:600;color:#333;';
+                            selectedBox.appendChild(selectedName);
+                            const selectedCedula = document.createElement('div');
+                            selectedCedula.id = 'selectedClientCedula';
+                            selectedCedula.style.cssText = 'font-size:13px;color:#666;';
+                            selectedBox.appendChild(selectedCedula);
+                            creditForm.appendChild(selectedBox);
+                            
+                            // Hidden input
+                            const hiddenInput = document.createElement('input');
+                            hiddenInput.type = 'hidden';
+                            hiddenInput.id = 'creditClient';
+                            hiddenInput.required = true;
+                            creditForm.appendChild(hiddenInput);
+                            
+                            // Monto
+                            const montoDiv = document.createElement('div');
+                            montoDiv.style.cssText = 'margin-bottom:12px;';
+                            const montoLabel = document.createElement('label');
+                            montoLabel.textContent = 'Monto *';
+                            montoLabel.style.cssText = 'display:block;margin-bottom:5px;font-weight:600;color:#374151;';
+                            montoDiv.appendChild(montoLabel);
+                            const montoInput = document.createElement('input');
+                            montoInput.type = 'text';
+                            montoInput.inputMode = 'numeric';
+                            montoInput.id = 'creditAmount';
+                            montoInput.required = true;
+                            montoInput.placeholder = '500000';
+                            montoInput.style.cssText = 'width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;';
+                            montoDiv.appendChild(montoInput);
+                            const montoHint = document.createElement('small');
+                            montoHint.textContent = 'Mínimo: $50,000';
+                            montoHint.style.cssText = 'color:#666;font-size:12px;';
+                            montoDiv.appendChild(montoHint);
+                            creditForm.appendChild(montoDiv);
+                            
+                            // Cuota
+                            const cuotaDiv = document.createElement('div');
+                            cuotaDiv.style.cssText = 'margin-bottom:12px;';
+                            const cuotaLabel = document.createElement('label');
+                            cuotaLabel.textContent = 'Cuota diaria *';
+                            cuotaLabel.style.cssText = 'display:block;margin-bottom:5px;font-weight:600;color:#374151;';
+                            cuotaDiv.appendChild(cuotaLabel);
+                            const cuotaInput = document.createElement('input');
+                            cuotaInput.type = 'text';
+                            cuotaInput.inputMode = 'numeric';
+                            cuotaInput.id = 'creditDailyQuota';
+                            cuotaInput.required = true;
+                            cuotaInput.placeholder = '20000';
+                            cuotaInput.style.cssText = 'width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;';
+                            cuotaDiv.appendChild(cuotaInput);
+                            const cuotaHint = document.createElement('small');
+                            cuotaHint.textContent = 'Mínimo: $' + cuotaMinima.toLocaleString();
+                            cuotaHint.style.cssText = 'color:#666;font-size:12px;';
+                            cuotaDiv.appendChild(cuotaHint);
+                            creditForm.appendChild(cuotaDiv);
+                            
+                            // Días calculados
+                            const diasDiv = document.createElement('div');
+                            diasDiv.style.cssText = 'margin-bottom:12px;';
+                            const diasLabel = document.createElement('label');
+                            diasLabel.textContent = 'Días';
+                            diasLabel.style.cssText = 'display:block;margin-bottom:5px;font-weight:600;color:#374151;';
+                            diasDiv.appendChild(diasLabel);
+                            const diasResult = document.createElement('div');
+                            diasResult.id = 'creditCalculatedDays';
+                            diasResult.textContent = '-';
+                            diasResult.style.cssText = 'padding:10px;background:#e0e7ff;border-radius:8px;font-weight:bold;text-align:center;';
+                            diasDiv.appendChild(diasResult);
+                            creditForm.appendChild(diasDiv);
+                            
+                            // Total
+                            const totalDiv = document.createElement('div');
+                            totalDiv.style.cssText = 'margin-bottom:12px;';
+                            const totalLabel = document.createElement('label');
+                            totalLabel.textContent = 'Total a pagar';
+                            totalLabel.style.cssText = 'display:block;margin-bottom:5px;font-weight:600;color:#374151;';
+                            totalDiv.appendChild(totalLabel);
+                            const totalResult = document.createElement('div');
+                            totalResult.id = 'creditTotal';
+                            totalResult.textContent = '-';
+                            totalResult.style.cssText = 'padding:10px;background:#dcfce7;border-radius:8px;font-weight:bold;text-align:center;';
+                            totalDiv.appendChild(totalResult);
+                            creditForm.appendChild(totalDiv);
+                            
+                            // Botones
+                            const buttonsDiv = document.createElement('div');
+                            buttonsDiv.style.cssText = 'display:flex;gap:10px;margin-top:16px;';
+                            const cancelBtn = document.createElement('button');
+                            cancelBtn.type = 'button';
+                            cancelBtn.textContent = 'Cancelar';
+                            cancelBtn.onclick = hideCreateCreditForm;
+                            cancelBtn.style.cssText = 'flex:1;padding:12px;background:#6c757d;color:white;border:none;border-radius:8px;cursor:pointer;';
+                            buttonsDiv.appendChild(cancelBtn);
+                            const submitBtn = document.createElement('button');
+                            submitBtn.id = 'createCreditBtn';
+                            submitBtn.type = 'button';
+                            submitBtn.textContent = 'Crear Crédito';
+                            submitBtn.onclick = () => createCredit({min_cuotas:minCuotas,max_cuotas:maxCuotas,cuota_minima:cuotaMinima,interes_base:20});
+                            submitBtn.style.cssText = 'flex:1;padding:12px;background:#10b981;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;';
+                            buttonsDiv.appendChild(submitBtn);
+                            creditForm.appendChild(buttonsDiv);
+                            
                             container.appendChild(creditForm);
                             overlay.appendChild(container);
                             document.body.appendChild(overlay);
                             
-                            console.log('✅✅✅ Modal iPhone insertado con DOM API');
+                            console.log('✅✅✅ Modal iPhone insertado con DOM puro (sin template literals)');
                         } catch (e) {
                             console.error('❌ Error creando modal iPhone:', e);
                             showError('Error: ' + e.message);
