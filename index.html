@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v5.7</title>
-    <!-- Cache Buster: v5.7.<?php echo time(); ?> -->
+    <title>Cobrador App - v5.8 Debug</title>
+    <!-- Cache Buster: v5.8.<?php echo time(); ?> -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js?v=5.7"></script>
-    <script src="crypto.js?v=5.7"></script>
-    <script src="sync.js?v=5.7"></script>
-    <script src="iphone-debug.js?v=5.7"></script>
+    <script src="db.js?v=5.8"></script>
+    <script src="crypto.js?v=5.8"></script>
+    <script src="sync.js?v=5.8"></script>
+    <script src="iphone-debug.js?v=5.8"></script>
     <style display="none">
         * {
             margin: 0;
@@ -1086,23 +1086,47 @@
                 banner.classList.add('show');
                 updateBanner('📦', 'Preparando datos offline...', 'Descargando información para trabajar sin conexión');
                 
+                // Panel de debug
+                const debugPanel = document.createElement('div');
+                debugPanel.id = 'debugPanel';
+                debugPanel.style.cssText = 'position:fixed;bottom:20px;right:20px;background:rgba(0,0,0,0.9);color:#0f0;padding:15px;border-radius:8px;font-family:monospace;font-size:11px;max-width:400px;max-height:400px;overflow-y:auto;z-index:99999;';
+                document.body.appendChild(debugPanel);
+                
+                const addDebugLog = (msg) => {
+                    const time = new Date().toLocaleTimeString();
+                    debugPanel.innerHTML += `<div>[${time}] ${msg}</div>`;
+                    debugPanel.scrollTop = debugPanel.scrollHeight;
+                    console.log(`[DEBUG] ${msg}`);
+                };
+                
+                addDebugLog('🚀 Iniciando descarga de cache...');
+                
                 // 1. Cache clientes
-                updateBanner('👥', 'Descargando clientes...', 'Paso 1 de 5');
-                await new Promise(resolve => setTimeout(resolve, 1200)); // Pausa para visualizar
+                updateBanner('👥', 'Descargando clientes...', 'Paso 1 de 5 ⏳');
+                await new Promise(resolve => setTimeout(resolve, 3000));
                 const { data: clientes } = await APP.supabase
                     .from('clients')
                     .select('*')
                     .eq('panel_id', APP.collectorContext.panelId)
                     .order('nombre', { ascending: true });
                 
+                addDebugLog(`📥 Recibido: ${clientes?.length || 0} clientes`);
+                
                 if (clientes?.length) {
+                    addDebugLog(`💾 Guardando clientes en cache...`);
                     await saveToCache('clientes_cache', clientes);
-                    console.log(`✅ ${clientes.length} clientes cacheados`);
+                    addDebugLog(`✅ ${clientes.length} clientes guardados`);
+                    
+                    // Verificar lectura inmediata
+                    const verificar = await loadFromCache('clientes_cache');
+                    addDebugLog(`🔍 Verificación: ${verificar?.length || 0} clientes leídos`);
+                } else {
+                    addDebugLog(`⚠️ No hay clientes para cachear`);
                 }
                 
                 // 2. Cache préstamos activos (sin relaciones anidadas para evitar error 400)
-                updateBanner('💰', 'Descargando préstamos activos...', 'Paso 2 de 5');
-                await new Promise(resolve => setTimeout(resolve, 1200));
+                updateBanner('💰', 'Descargando préstamos activos...', 'Paso 2 de 5 ⏳');
+                await new Promise(resolve => setTimeout(resolve, 3000));
                 const { data: prestamos } = await APP.supabase
                     .from('prestamos')
                     .select('id, cliente_id, cuota_diaria, estado, saldo_total_pendiente, monto_total, fecha_inicio, fecha_fin, monto_prestado, total_dias')
@@ -1110,9 +1134,13 @@
                     .in('estado', ['activo', 'vencido'])
                     .order('fecha_inicio', { ascending: false });
                 
+                addDebugLog(`📥 Recibido: ${prestamos?.length || 0} préstamos`);
+                
                 // Enriquecer con datos de clientes desde el cache local
                 if (prestamos?.length && clientes?.length) {
+                    addDebugLog(`🔗 Enriqueciendo préstamos con datos de clientes...`);
                     const clientesMap = new Map(clientes.map(c => [c.id, c]));
+                    let enriched = 0;
                     prestamos.forEach(p => {
                         const cliente = clientesMap.get(p.cliente_id);
                         if (cliente) {
@@ -1122,15 +1150,29 @@
                                 cedula: cliente.cedula,
                                 telefono: cliente.telefono
                             };
+                            enriched++;
                         }
                     });
+                    addDebugLog(`✅ ${enriched}/${prestamos.length} préstamos enriquecidos`);
+                    addDebugLog(`💾 Guardando préstamos en cache...`);
                     await saveToCache('prestamos_detalle_cache', prestamos);
-                    console.log(`✅ ${prestamos.length} préstamos cacheados`);
+                    addDebugLog(`✅ ${prestamos.length} préstamos guardados`);
+                    
+                    // Verificar
+                    const verificar = await loadFromCache('prestamos_detalle_cache');
+                    addDebugLog(`🔍 Verificación: ${verificar?.length || 0} préstamos leídos`);
+                    if (verificar?.length > 0 && verificar[0].clients) {
+                        addDebugLog(`✅ Datos enriquecidos preservados: ${verificar[0].clients.nombre}`);
+                    } else {
+                        addDebugLog(`⚠️ Datos enriquecidos perdidos en cache`);
+                    }
+                } else {
+                    addDebugLog(`⚠️ No hay préstamos o clientes para enriquecer`);
                 }
                 
                 // 3. Cache cuotas pendientes
-                updateBanner('📅', 'Descargando cuotas pendientes...', 'Paso 3 de 5');
-                await new Promise(resolve => setTimeout(resolve, 1200));
+                updateBanner('📅', 'Descargando cuotas pendientes...', 'Paso 3 de 5 ⏳');
+                await new Promise(resolve => setTimeout(resolve, 3000));
                 const { data: cuotas } = await APP.supabase
                     .from('cuotas')
                     .select('id, prestamo_id, fecha_vencimiento, saldo_pendiente, estado')
@@ -1138,19 +1180,26 @@
                     .neq('estado', 'pagada')
                     .order('fecha_vencimiento', { ascending: true });
                 
+                addDebugLog(`📥 Recibido: ${cuotas?.length || 0} cuotas`);
+                
                 if (cuotas?.length) {
+                    addDebugLog(`💾 Guardando cuotas...`);
                     await saveToCache('cuotas_cache', cuotas);
-                    console.log(`✅ ${cuotas.length} cuotas cacheadas`);
+                    addDebugLog(`✅ ${cuotas.length} cuotas guardadas`);
+                } else {
+                    addDebugLog(`⚠️ No hay cuotas`);
                 }
                 
                 // 4. Cache settings
-                updateBanner('⚙️', 'Descargando configuración...', 'Paso 4 de 5');
-                await new Promise(resolve => setTimeout(resolve, 1200));
+                updateBanner('⚙️', 'Descargando configuración...', 'Paso 4 de 5 ⏳');
+                await new Promise(resolve => setTimeout(resolve, 3000));
                 await cacheSettings();
                 
+                addDebugLog(`⚙️ Settings cacheados`);
+                
                 // 5. Cache pagos recientes (sin relaciones anidadas)
-                updateBanner('💳', 'Descargando pagos recientes...', 'Paso 5 de 5');
-                await new Promise(resolve => setTimeout(resolve, 1200));
+                updateBanner('💳', 'Descargando pagos recientes...', 'Paso 5 de 5 ⏳');
+                await new Promise(resolve => setTimeout(resolve, 3000));
                 const thirtyDaysAgo = new Date();
                 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
                 
@@ -1161,9 +1210,13 @@
                     .gte('fecha_pago', thirtyDaysAgo.toISOString())
                     .order('fecha_pago', { ascending: false });
                 
+                addDebugLog(`📥 Recibido: ${pagos?.length || 0} pagos`);
+                
                 // Enriquecer con datos de clientes desde el cache local
                 if (pagos?.length && clientes?.length) {
+                    addDebugLog(`🔗 Enriqueciendo pagos con datos de clientes...`);
                     const clientesMap = new Map(clientes.map(c => [c.id, c]));
+                    let enriched = 0;
                     pagos.forEach(p => {
                         const cliente = clientesMap.get(p.cliente_id);
                         if (cliente) {
@@ -1171,16 +1224,37 @@
                                 nombre: cliente.nombre,
                                 cedula: cliente.cedula
                             };
+                            enriched++;
                         }
                         p.prestamos = { id: p.prestamo_id };
                     });
+                    addDebugLog(`✅ ${enriched}/${pagos.length} pagos enriquecidos`);
+                    addDebugLog(`💾 Guardando pagos...`);
                     await saveToCache('pagos_cache', pagos);
-                    console.log(`✅ ${pagos.length} pagos cacheados`);
+                    addDebugLog(`✅ ${pagos.length} pagos guardados`);
+                    
+                    // Verificar
+                    const verificar = await loadFromCache('pagos_cache');
+                    addDebugLog(`🔍 Verificación: ${verificar?.length || 0} pagos leídos`);
+                    if (verificar?.length > 0 && verificar[0].clients) {
+                        addDebugLog(`✅ Datos pagos OK: ${verificar[0].clients.nombre}`);
+                    } else {
+                        addDebugLog(`⚠️ Datos pagos perdidos`);
+                    }
+                } else {
+                    addDebugLog(`⚠️ No hay pagos para cachear`);
                 }
+                
+                addDebugLog(`🎉 PROCESO COMPLETADO - Panel visible 30seg`);
                 
                 // Mostrar confirmación de éxito
                 banner.classList.add('ready');
                 updateBanner('✅', '¡Listo para trabajar offline!', `${clientes?.length || 0} clientes, ${prestamos?.length || 0} créditos, ${cuotas?.length || 0} cuotas`);
+                
+                // Mantener panel debug visible 30 segundos
+                setTimeout(() => {
+                    if (debugPanel) debugPanel.remove();
+                }, 30000);
                 
                 // Sincronizar datos pendientes
                 await syncOfflineData();
