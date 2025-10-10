@@ -1,123 +1,135 @@
-// Funciones de bÃºsqueda y paginaciÃ³n ultraligeras
-
-// Global pagination state
+// Pagination and search state
 const PAGINATION_STATE = {
-    pendientes: { currentPage: 1, itemsPerPage: 10, filteredData: [], allData: [] },
-    clientes: { currentPage: 1, itemsPerPage: 10, filteredData: [], allData: [] },
-    creditos: { currentPage: 1, itemsPerPage: 10, filteredData: [], allData: [] },
-    pagos: { currentPage: 1, itemsPerPage: 10, filteredData: [], allData: [] }
+    pendientes: {
+        currentPage: 1,
+        pageSize: 10,
+        allData: [],
+        filteredData: []
+    },
+    clientes: {
+        currentPage: 1,
+        pageSize: 10,
+        allData: [],
+        filteredData: []
+    },
+    creditos: {
+        currentPage: 1,
+        pageSize: 10,
+        allData: [],
+        filteredData: []
+    },
+    pagos: {
+        currentPage: 1,
+        pageSize: 10,
+        allData: [],
+        filteredData: []
+    }
 };
 
-// Filter data by search term
-function filterData(data, searchTerm, searchFields) {
-    if (!searchTerm || searchTerm.trim() === '') return data;
-    
-    const term = searchTerm.toLowerCase().trim();
-    return data.filter(item => {
-        return searchFields.some(field => {
-            const value = getNestedValue(item, field);
-            return value && String(value).toLowerCase().includes(term);
-        });
-    });
-}
-
-// Get nested value from object (supports 'clients.nombre')
-function getNestedValue(obj, path) {
-    return path.split('.').reduce((current, key) => current?.[key], obj);
-}
-
-// Render pagination controls
-function renderPagination(viewName, totalItems) {
-    const state = PAGINATION_STATE[viewName];
-    const totalPages = Math.ceil(totalItems / state.itemsPerPage);
-    const container = document.getElementById(`pagination${viewName.charAt(0).toUpperCase() + viewName.slice(1)}`);
-    
-    if (!container || totalPages <= 1) {
-        if (container) container.style.display = 'none';
-        return;
-    }
-    
-    container.style.display = 'flex';
-    container.style.justifyContent = 'center';
-    container.style.alignItems = 'center';
-    container.style.gap = '8px';
-    
-    let html = `
-        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;">
-            <button 
-                onclick="changePage('${viewName}', ${state.currentPage - 1})"
-                ${state.currentPage === 1 ? 'disabled' : ''}
-                style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer; font-weight: bold; ${state.currentPage === 1 ? 'opacity: 0.5; cursor: not-allowed;' : ''}">
-                ←
-            </button>
-            <span style="font-size: 14px; color: #666; padding: 0 8px;">
-                Página ${state.currentPage} de ${totalPages}
-            </span>
-            <button 
-                onclick="changePage('${viewName}', ${state.currentPage + 1})"
-                ${state.currentPage === totalPages ? 'disabled' : ''}
-                style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer; font-weight: bold; ${state.currentPage === totalPages ? 'opacity: 0.5; cursor: not-allowed;' : ''}">
-                →
-            </button>
-        </div>
-        <div style="text-align: center; margin-top: 5px; font-size: 13px; color: #888;">
-            ${totalItems} resultados
-        </div>
-    `;
-    
-    container.innerHTML = html;
-}
-
-// Change page
-function changePage(viewName, newPage) {
-    const state = PAGINATION_STATE[viewName];
-    const totalPages = Math.ceil(state.filteredData.length / state.itemsPerPage);
-    
-    if (newPage < 1 || newPage > totalPages) return;
-    
-    state.currentPage = newPage;
-    
-    // Call the appropriate render function
-    switch(viewName) {
-        case 'pendientes':
-            renderPendientes(state.filteredData);
-            break;
-        case 'clientes':
-            renderClientes(state.filteredData);
-            break;
-        case 'creditos':
-            renderCreditos(state.filteredData);
-            break;
-        case 'pagos':
-            renderPagos(state.filteredData);
-            break;
-    }
-}
-
 // Get paginated data
-function getPaginatedData(viewName, data) {
-    const state = PAGINATION_STATE[viewName];
-    const startIndex = (state.currentPage - 1) * state.itemsPerPage;
-    const endIndex = startIndex + state.itemsPerPage;
-    return data.slice(startIndex, endIndex);
+function getPaginatedData(stateKey, data) {
+    const state = PAGINATION_STATE[stateKey];
+    const start = (state.currentPage - 1) * state.pageSize;
+    const end = start + state.pageSize;
+    return data.slice(start, end);
 }
 
 // Setup search listener
-function setupSearchListener(viewName, searchFields, renderFunction) {
-    const searchInput = document.getElementById(`search${viewName.charAt(0).toUpperCase() + viewName.slice(1)}`);
-    if (!searchInput) return;
+function setupSearchListener(stateKey, searchFields, renderFunction) {
+    const searchInput = document.getElementById(`search${stateKey.charAt(0).toUpperCase() + stateKey.slice(1)}`);
     
-    searchInput.addEventListener('input', (e) => {
-        const state = PAGINATION_STATE[viewName];
-        state.filteredData = filterData(state.allData, e.target.value, searchFields);
-        state.currentPage = 1; // Reset to first page
+    if (!searchInput) {
+        console.warn(`Search input not found for ${stateKey}`);
+        return;
+    }
+
+    // Remove old listeners
+    const newInput = searchInput.cloneNode(true);
+    searchInput.parentNode.replaceChild(newInput, searchInput);
+
+    newInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase();
+        const state = PAGINATION_STATE[stateKey];
+        
+        if (!query) {
+            state.filteredData = state.allData;
+        } else {
+            state.filteredData = state.allData.filter(item => {
+                return searchFields.some(field => {
+                    const fieldValue = field.split('.').reduce((obj, key) => obj?.[key], item);
+                    return String(fieldValue || '').toLowerCase().includes(query);
+                });
+            });
+        }
+        
+        state.currentPage = 1;
         renderFunction(state.filteredData);
     });
 }
 
-// ==================== RENDER FUNCTIONS ====================
+// Render pagination
+function renderPagination(stateKey, totalItems) {
+    const state = PAGINATION_STATE[stateKey];
+    const totalPages = Math.ceil(totalItems / state.pageSize);
+    const containerId = `${stateKey}Pagination`;
+    const container = document.getElementById(containerId);
+    
+    if (!container) return;
 
-// Render Pendientes (Cuotas Pendientes)
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+
+    let html = '<div class="pagination">';
+    
+    // Previous button
+    html += `<button class="page-btn" ${state.currentPage === 1 ? 'disabled' : ''} 
+            onclick="changePage('${stateKey}', ${state.currentPage - 1})">
+            ‹ Anterior
+        </button>`;
+    
+    // Page numbers
+    for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= state.currentPage - 1 && i <= state.currentPage + 1)) {
+            html += `<button class="page-btn ${i === state.currentPage ? 'active' : ''}" 
+                    onclick="changePage('${stateKey}', ${i})">
+                    ${i}
+                </button>`;
+        } else if (i === state.currentPage - 2 || i === state.currentPage + 2) {
+            html += '<span class="page-ellipsis">...</span>';
+        }
+    }
+    
+    // Next button
+    html += `<button class="page-btn" ${state.currentPage === totalPages ? 'disabled' : ''} 
+            onclick="changePage('${stateKey}', ${state.currentPage + 1})">
+            Siguiente ›
+        </button>`;
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// Change page
+function changePage(stateKey, newPage) {
+    const state = PAGINATION_STATE[stateKey];
+    state.currentPage = newPage;
+    
+    const renderFunctions = {
+        pendientes: renderPendientes,
+        clientes: renderClientes,
+        creditos: renderCreditos,
+        pagos: renderPagos
+    };
+    
+    const renderFunction = renderFunctions[stateKey];
+    if (renderFunction) {
+        renderFunction(state.filteredData);
+    }
+}
+
+// 🆕 Render individual cuotas (not grouped loans)
 function renderPendientes(allData) {
     const container = document.getElementById('pendingQuotasList');
     const state = PAGINATION_STATE.pendientes;
@@ -131,18 +143,24 @@ function renderPendientes(allData) {
         return;
     }
     
-    container.innerHTML = paginatedData.map(loan => {
-        const isOverdue = loan.daysOverdue > 0;
+    container.innerHTML = paginatedData.map(cuota => {
+        const isOverdue = cuota.daysOverdue > 0;
         const statusColor = isOverdue ? '#ef4444' : '#10b981';
-        const statusText = isOverdue ? `${loan.daysOverdue} días atraso` : 'Al día';
+        const statusText = isOverdue ? `${cuota.daysOverdue} días atraso` : 'Al día';
+        
+        // Datos del cliente desde la relación prestamos.clients
+        const clientName = cuota.prestamos?.clients?.nombre || 'N/A';
+        const clientCedula = cuota.prestamos?.clients?.cedula || '';
+        const clientId = cuota.prestamos?.cliente_id || '';
+        const loanId = cuota.prestamo_id;
         
         return `
         <div style="background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
             <!-- Header -->
             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
                 <div>
-                    <div style="font-size: 16px; font-weight: bold; color: #333;">${loan.clients?.nombre || 'N/A'}</div>
-                    <div style="font-size: 13px; color: #666;">${loan.clients?.cedula || ''}</div>
+                    <div style="font-size: 16px; font-weight: bold; color: #333;">${clientName}</div>
+                    <div style="font-size: 13px; color: #666;">${clientCedula}</div>
                 </div>
                 <div style="text-align: right;">
                     <div style="display: inline-block; padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: bold; color: white; background: ${statusColor};">
@@ -151,44 +169,36 @@ function renderPendientes(allData) {
                 </div>
             </div>
             
-            <!-- Progress Bar -->
-            <div style="margin: 10px 0;">
-                <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
-                    <span>${loan.paidCuotas}/${loan.totalCuotas} cuotas</span>
-                    <span>${loan.progress}%</span>
-                </div>
-                <div style="width: 100%; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden;">
-                    <div style="height: 100%; background: ${isOverdue ? '#ef4444' : '#10b981'}; width: ${loan.progress}%; transition: width 0.3s;"></div>
+            <!-- Cuota Info -->
+            <div style="margin-bottom: 10px; padding: 8px; background: #f9fafb; border-radius: 6px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Cuota #${cuota.numero_cuota}</div>
+                        <div style="font-size: 14px; font-weight: bold; color: #333;">$${Number(cuota.monto_cuota).toLocaleString()}</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Vence</div>
+                        <div style="font-size: 12px; color: #333;">${new Date(cuota.fecha_vencimiento).toLocaleDateString('es-ES')}</div>
+                    </div>
                 </div>
             </div>
             
-            <!-- Info Row -->
-            <div style="display: flex; justify-content: space-between; margin: 10px 0; font-size: 13px;">
+            <!-- Saldo pendiente y acción -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #e5e7eb;">
                 <div>
-                    <div style="color: #666;">Cuota diaria</div>
-                    <div style="font-weight: bold;">$${Number(loan.cuota_diaria).toLocaleString()}</div>
+                    <div style="color: #666; font-size: 11px;">Saldo pendiente</div>
+                    <div style="color: #ef4444; font-weight: bold; font-size: 15px;">$${Number(cuota.saldo_pendiente).toLocaleString()}</div>
                 </div>
-                <div style="text-align: right;">
-                    <div style="color: #666;">Saldo</div>
-                    <div style="font-weight: bold; color: ${isOverdue ? '#ef4444' : '#333'};">$${Number(loan.pendingAmount).toLocaleString()}</div>
+                <div>
+                    <button onclick="showPaymentForm('${loanId}', '${clientId}')" 
+                            style="padding: 8px 16px; background: #10b981; color: white; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 500;">
+                        💳 Registrar Pago
+                    </button>
                 </div>
-            </div>
-            
-            <!-- Action Buttons -->
-            <div style="display: flex; gap: 8px; margin-top: 12px;">
-                <button onclick="showRegisterPaymentForm('${loan.id}')" 
-                    class="btn ${isOverdue ? 'btn-danger' : 'btn-success'}" 
-                    style="flex: 1; padding: 10px;">
-                    Registrar Pago
-                </button>
-                <button onclick="showCollectCreditForm('${loan.id}')" 
-                    class="btn" 
-                    style="flex: 1; padding: 10px; background: #f59e0b; color: white;">
-                    Recoger Crédito
-                </button>
             </div>
         </div>
-    `}).join('');
+        `;
+    }).join('');
     
     renderPagination('pendientes', state.filteredData.length);
 }
@@ -202,20 +212,27 @@ function renderClientes(allData) {
     const paginatedData = getPaginatedData('clientes', state.filteredData);
     
     if (paginatedData.length === 0) {
-        container.innerHTML = '<div class="empty-state"><h3>No se encontraron clientes</h3></div>';
+        container.innerHTML = '<div class="empty-state"><h3>No se encontraron resultados</h3></div>';
         renderPagination('clientes', 0);
         return;
     }
     
     container.innerHTML = paginatedData.map(client => `
-        <div class="list-item" style="cursor: pointer; border-radius: 10px; padding: 12px; margin-bottom: 10px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div class="client-card">
+            <div class="client-header">
                 <div>
-                    <h4 style="margin: 0 0 5px 0; font-size: 16px; color: #333;">${client.nombre}</h4>
-                    <p style="margin: 0; font-size: 13px; color: #666;">
-                        📱 ${client.telefono || 'N/A'} • 🆔 ${client.cedula || 'N/A'}
-                    </p>
+                    <h3>${client.nombre}</h3>
+                    <p>CC: ${client.cedula || 'N/A'}</p>
                 </div>
+            </div>
+            <div class="client-info">
+                <p>📞 ${client.telefono || 'N/A'}</p>
+                <p>📧 ${client.email || 'N/A'}</p>
+            </div>
+            <div style="margin-top: 10px;">
+                <button onclick="showCreateCreditForm('${client.id}')" class="btn btn-primary" style="width: 100%;">
+                    Crear Crédito
+                </button>
             </div>
         </div>
     `).join('');
@@ -223,7 +240,7 @@ function renderClientes(allData) {
     renderPagination('clientes', state.filteredData.length);
 }
 
-// Render CrÃ©ditos
+// Render Creditos
 function renderCreditos(allData) {
     const container = document.getElementById('creditsList');
     const state = PAGINATION_STATE.creditos;
@@ -232,50 +249,37 @@ function renderCreditos(allData) {
     const paginatedData = getPaginatedData('creditos', state.filteredData);
     
     if (paginatedData.length === 0) {
-        container.innerHTML = '<div class="empty-state"><h3>No se encontraron crÃ©ditos</h3></div>';
+        container.innerHTML = '<div class="empty-state"><h3>No se encontraron resultados</h3></div>';
         renderPagination('creditos', 0);
         return;
     }
     
     container.innerHTML = paginatedData.map(credit => {
-        // Parse date correctly to avoid timezone issues
-        const fechaParts = (credit.fecha_inicio || '').split('-');
-        const localDate = fechaParts.length === 3 
-            ? new Date(parseInt(fechaParts[0]), parseInt(fechaParts[1]) - 1, parseInt(fechaParts[2]))
-            : null;
-        const fechaInicioStr = localDate ? localDate.toLocaleDateString('es-CO') : 'N/A';
+        const progress = credit.totalAmount > 0 
+            ? Math.round((credit.paidAmount / credit.totalAmount) * 100) 
+            : 0;
         
         return `
-        <div class="list-item" style="border-radius: 10px; padding: 15px; margin-bottom: 12px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+        <div class="credit-card">
+            <div class="credit-header">
                 <div>
-                    <h4 style="margin: 0 0 5px 0; font-size: 16px; color: #333;">${credit.clients?.nombre || 'N/A'}</h4>
-                    <p style="margin: 0; font-size: 13px; color: #666;">🆔 ${credit.clients?.cedula || 'N/A'}</p>
+                    <h3>${credit.clients?.nombre || 'N/A'}</h3>
+                    <p>CC: ${credit.clients?.cedula || 'N/A'}</p>
                 </div>
-                <span style="display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: bold; ${credit.estado === 'activo' ? 'background: #10b981; color: white;' : 'background: #ef4444; color: white;'}">
-                    ${credit.estado === 'activo' ? 'Activo' : credit.estado === 'vencido' ? 'Vencido' : 'Completado'}
-                </span>
+                <span class="badge badge-${credit.estado}">${credit.estado}</span>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 13px;">
-                <div>
-                    <span style="color: #666;">Monto:</span>
-                    <strong style="color: #333;"> $${Number(credit.monto_prestado).toLocaleString()}</strong>
-                </div>
-                <div>
-                    <span style="color: #666;">Cuota diaria:</span>
-                    <strong style="color: #333;"> $${Number(credit.cuota_diaria).toLocaleString()}</strong>
-                </div>
-                <div>
-                    <span style="color: #666;">Días:</span>
-                    <strong> ${credit.total_dias || 'N/A'}</strong>
-                </div>
-                <div>
-                    <span style="color: #666;">Fecha inicio:</span>
-                    <strong> ${fechaInicioStr}</strong>
-                </div>
+            <div class="credit-info">
+                <p>💰 Monto: $${Number(credit.monto_prestado).toLocaleString()}</p>
+                <p>📅 ${credit.total_dias} días</p>
+                <p>💵 Cuota: $${Number(credit.cuota_diaria).toLocaleString()}</p>
             </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: ${progress}%"></div>
+            </div>
+            <p style="text-align: center; font-size: 12px; color: #666;">${progress}% pagado</p>
         </div>
-    `}).join('');
+        `;
+    }).join('');
     
     renderPagination('creditos', state.filteredData.length);
 }
@@ -289,37 +293,27 @@ function renderPagos(allData) {
     const paginatedData = getPaginatedData('pagos', state.filteredData);
     
     if (paginatedData.length === 0) {
-        container.innerHTML = '<div class="empty-state"><h3>No se encontraron pagos</h3></div>';
+        container.innerHTML = '<div class="empty-state"><h3>No se encontraron resultados</h3></div>';
         renderPagination('pagos', 0);
         return;
     }
     
-    container.innerHTML = paginatedData.map(payment => {
-        // Parse date correctly to avoid timezone issues
-        // fecha_pago is in format YYYY-MM-DD (local date, not UTC)
-        const fechaParts = (payment.fecha_pago || '').split('-');
-        const localDate = fechaParts.length === 3 
-            ? new Date(parseInt(fechaParts[0]), parseInt(fechaParts[1]) - 1, parseInt(fechaParts[2]))
-            : null;
-        const fechaStr = localDate ? localDate.toLocaleDateString('es-CO') : 'N/A';
-        
-        return `
-        <div class="list-item" style="border-radius: 10px; padding: 12px; margin-bottom: 10px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+    container.innerHTML = paginatedData.map(payment => `
+        <div class="payment-card">
+            <div class="payment-header">
                 <div>
-                    <h4 style="margin: 0 0 5px 0; font-size: 16px; color: #333;">${payment.clients?.nombre || 'N/A'}</h4>
-                    <p style="margin: 0; font-size: 13px; color: #666;">
-                        🆔 ${payment.clients?.cedula || 'N/A'} • ${fechaStr}
-                    </p>
+                    <h4>${payment.clients?.nombre || 'N/A'}</h4>
+                    <p>CC: ${payment.clients?.cedula || 'N/A'}</p>
                 </div>
-                <div style="text-align: right;">
-                    <div style="font-size: 18px; font-weight: bold; color: #10b981;">$${Number(payment.monto).toLocaleString()}</div>
-                    <div style="font-size: 11px; color: #888;">${payment.hora_pago ? payment.hora_pago.substring(0, 5) : ''}</div>
-                </div>
+                <span class="badge badge-${payment.estado}">${payment.estado}</span>
+            </div>
+            <div class="payment-info">
+                <p>💰 Monto: $${Number(payment.monto).toLocaleString()}</p>
+                <p>📅 ${new Date(payment.fecha_pago).toLocaleDateString('es-ES')}</p>
+                <p>🕐 ${payment.hora_pago || 'N/A'}</p>
             </div>
         </div>
-    `}).join('');
+    `).join('');
     
     renderPagination('pagos', state.filteredData.length);
 }
-

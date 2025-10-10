@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v7.1 Clean List</title>
-    <!-- Cache Buster: v7.1.<?php echo time(); ?> -->
+    <title>Cobrador App - v8.0 Individual Quotas</title>
+    <!-- Cache Buster: v8.0.<?php echo time(); ?> -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js?v=7.1"></script>
-    <script src="crypto.js?v=7.1"></script>
-    <script src="sync.js?v=7.1"></script>
-    <script src="iphone-debug.js?v=7.1"></script>
+    <script src="db.js?v=8.0"></script>
+    <script src="crypto.js?v=8.0"></script>
+    <script src="sync.js?v=8.0"></script>
+    <script src="iphone-debug.js?v=8.0"></script>
     <style display="none">
         * {
             margin: 0;
@@ -1207,80 +1207,69 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                     }
                 }
                 
-                // 3. Cache préstamos AGRUPADOS con detalles (igual que "Cuotas Hoy" online)
-                updateBanner('📅', 'Calculando préstamos con detalles...', 'Paso 3 de 5 ⏳');
+                // 3. 🆕 Cache CUOTAS individuales pendientes (no préstamos agrupados)
+                updateBanner('📅', 'Descargando cuotas pendientes...', 'Paso 3 de 5 ⏳');
                 await new Promise(resolve => setTimeout(resolve, 800));
                 
-                if (prestamos?.length) {
-                    addDebugLog(`🔧 Procesando ${prestamos.length} préstamos con sus cuotas...`);
+                const today = new Date().toISOString().split('T')[0];
+                
+                // Obtener cuotas individuales pendientes para hoy
+                const { data: cuotasPendientes, error: cuotasError } = await APP.supabase
+                    .from('cuotas')
+                    .select('id, prestamo_id, numero_cuota, monto_cuota, saldo_pendiente, fecha_vencimiento, estado')
+                    .eq('prestamo_id.in', prestamos?.map(p => p.id) || [])
+                    .lte('fecha_vencimiento', today)
+                    .neq('estado', 'pagada')
+                    .order('fecha_vencimiento', { ascending: true });
+                
+                if (cuotasError) {
+                    addDebugLog(`❌ Error cuotas: ${cuotasError.message}`);
+                } else {
+                    addDebugLog(`📥 Recibido: ${cuotasPendientes?.length || 0} cuotas pendientes`);
                     
-                    // Para cada préstamo, obtener sus cuotas y calcular detalles (igual que loadPendingQuotas)
-                    const loansWithDetails = await Promise.all(prestamos.map(async (loan) => {
-                        const { data: cuotas } = await APP.supabase
-                            .from('cuotas')
-                            .select('estado, saldo_pendiente, fecha_vencimiento, monto_cuota')
-                            .eq('prestamo_id', loan.id)
-                            .order('numero_cuota');
+                    if (cuotasPendientes?.length && prestamos?.length) {
+                        // Enriquecer cuotas con datos de préstamos y clientes
+                        const prestamosMap = new Map(prestamos.map(p => [p.id, p]));
                         
-                        const totalCuotas = cuotas?.length || 0;
-                        const paidCuotas = cuotas?.filter(c => c.estado === 'pagada').length || 0;
-                        const pendingAmount = cuotas?.reduce((sum, c) => {
-                            if (c.estado !== 'pagada') {
-                                return sum + Number(c.saldo_pendiente || 0);
-                            }
-                            return sum;
-                        }, 0) || 0;
-                        
-                        const today = new Date().toISOString().split('T')[0];
-                        let maxOverdue = 0;
-                        const todayDate = new Date(today);
-                        cuotas?.forEach(c => {
-                            if (c.estado !== 'pagada' && c.fecha_vencimiento) {
-                                const dueDate = new Date(c.fecha_vencimiento);
-                                if (dueDate < todayDate) {
-                                    const diffTime = todayDate - dueDate;
-                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                                    if (diffDays > maxOverdue) maxOverdue = diffDays;
-                                }
-                            }
+                        const cuotasEnriquecidas = cuotasPendientes.map(cuota => {
+                            const prestamo = prestamosMap.get(cuota.prestamo_id);
+                            const todayDate = new Date(today);
+                            const dueDate = new Date(cuota.fecha_vencimiento);
+                            const diffTime = todayDate - dueDate;
+                            const daysOverdue = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+                            
+                            return {
+                                ...cuota,
+                                daysOverdue,
+                                prestamos: prestamo ? {
+                                    id: prestamo.id,
+                                    cliente_id: prestamo.cliente_id,
+                                    cuota_diaria: prestamo.cuota_diaria,
+                                    estado: prestamo.estado,
+                                    monto_prestado: prestamo.monto_prestado,
+                                    total_dias: prestamo.total_dias,
+                                    cobrador_id: prestamo.cobrador_id,
+                                    clients: prestamo.clients
+                                } : null
+                            };
                         });
                         
-                        const totalAmount = Number(loan.monto_prestado || 0);
-                        const paidAmount = totalAmount - pendingAmount;
-                        const progress = totalAmount > 0 ? Math.round((paidAmount / totalAmount) * 100) : 0;
+                        addDebugLog(`✅ ${cuotasEnriquecidas.length} cuotas enriquecidas con datos de clientes`);
+                        addDebugLog(`💾 Guardando en cuotas_cache...`);
+                        await saveToCache('cuotas_cache', cuotasEnriquecidas);
+                        addDebugLog(`✅ Cache "Cuotas Hoy" listo`);
                         
-                        return {
-                            ...loan,
-                            totalCuotas,
-                            paidCuotas,
-                            pendingAmount,
-                            daysOverdue: maxOverdue,
-                            totalAmount,
-                            paidAmount,
-                            progress
-                        };
-                    }));
-                    
-                    // 🆕 FILTRAR solo préstamos con cuotas pendientes (saldo > 0)
-                    const loansWithPending = loansWithDetails.filter(loan => {
-                        return loan.pendingAmount > 0 && loan.paidCuotas < loan.totalCuotas;
-                    });
-                    
-                    addDebugLog(`✅ ${loansWithDetails.length} préstamos procesados, ${loansWithPending.length} con cuotas pendientes`);
-                    addDebugLog(`💾 Guardando en cuotas_cache...`);
-                    await saveToCache('cuotas_cache', loansWithPending);
-                    addDebugLog(`✅ Cache "Cuotas Hoy" listo`);
-                    
-                    // Verificar
-                    const verificar = await loadFromCache('cuotas_cache');
-                    addDebugLog(`🔍 Verificación: ${verificar?.length || 0} préstamos en cache`);
-                    if (verificar?.length > 0 && verificar[0].clients) {
-                        addDebugLog(`✅ Estructura OK: ${verificar[0].clients.nombre}, ${verificar[0].paidCuotas}/${verificar[0].totalCuotas} pagadas`);
+                        // Verificar
+                        const verificar = await loadFromCache('cuotas_cache');
+                        addDebugLog(`🔍 Verificación: ${verificar?.length || 0} cuotas en cache`);
+                        if (verificar?.length > 0 && verificar[0].prestamos?.clients) {
+                            addDebugLog(`✅ Estructura OK: Cuota #${verificar[0].numero_cuota} - ${verificar[0].prestamos.clients.nombre}`);
+                        } else {
+                            addDebugLog(`⚠️ Estructura incorrecta en cache`);
+                        }
                     } else {
-                        addDebugLog(`⚠️ Estructura incorrecta en cache`);
+                        addDebugLog(`⚠️ No hay cuotas pendientes o préstamos para enriquecer`);
                     }
-                } else {
-                    addDebugLog(`⚠️ No hay préstamos para procesar`);
                 }
                 
                 // 4. Cache settings
@@ -1959,15 +1948,15 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
             container.innerHTML = html;
         }
 
-        // Load pending loans with details (similar to main panel)
+        // 🆕 Load individual pending cuotas (not grouped loans)
         async function loadPendingQuotas() {
-            console.log('🚀 INICIANDO loadPendingQuotas()');
+            console.log('🚀 INICIANDO loadPendingQuotas() - CUOTAS INDIVIDUALES');
             const container = document.getElementById('pendingQuotasList');
             if (!container) {
                 console.error('❌ No se encontró el contenedor pendingQuotasList');
                 return;
             }
-            container.innerHTML = '<div class="loading">Cargando préstamos...</div>';
+            container.innerHTML = '<div class="loading">Cargando cuotas pendientes...</div>';
 
             try {
                 // Check online status first
@@ -1979,146 +1968,106 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                 // 🆕 If offline, try to load from cache
                 if (!APP.isOnline || !navigator.onLine) {
                     console.log('📵 Offline mode - loading from cache...');
-                    const cachedLoans = await loadFromCache('cuotas_cache');
+                    const cachedQuotas = await loadFromCache('cuotas_cache');
                     
-                    if (cachedLoans && cachedLoans.length > 0) {
-                        console.log(`📂 Loaded ${cachedLoans.length} loans from cache`);
-                        console.log('📂 Primera cuota:', cachedLoans[0]);
+                    if (cachedQuotas && cachedQuotas.length > 0) {
+                        console.log(`📂 Loaded ${cachedQuotas.length} cuotas from cache`);
                         
                         // Usar el mismo sistema de paginación que online
-                        PAGINATION_STATE.pendientes.allData = cachedLoans;
-                        PAGINATION_STATE.pendientes.filteredData = cachedLoans;
+                        PAGINATION_STATE.pendientes.allData = cachedQuotas;
+                        PAGINATION_STATE.pendientes.filteredData = cachedQuotas;
                         PAGINATION_STATE.pendientes.currentPage = 1;
                         
                         // Setup search listener
-                        setupSearchListener('pendientes', ['clients.nombre', 'clients.cedula'], renderPendientes);
+                        setupSearchListener('pendientes', ['prestamos.clients.nombre', 'prestamos.clients.cedula'], renderPendientes);
                         
-                        // Render con paginación (mismo que online)
+                        // Render con paginación
                         setTimeout(() => {
-                            renderPendientes(cachedLoans);
+                            renderPendientes(cachedQuotas);
                         }, 0);
                         return;
                     } else {
-                        container.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>No hay datos en cache. Conecta a internet para cargar las cuotas</p></div>';
+                        container.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>No hay cuotas en cache. Conecta a internet para cargar las cuotas</p></div>';
                         return;
                     }
                 }
 
                 const today = getLocalToday();
                 console.log('📅 Fecha local hoy:', today);
-                console.log('Loading pending loans for today:', today);
                 
-                // Get active loans for this collector
-                const { data: loans, error: loansError } = await APP.supabase
-                    .from('prestamos')
+                // 🆕 Obtener CUOTAS individuales pendientes para hoy (no préstamos agrupados)
+                const { data: cuotas, error: cuotasError } = await APP.supabase
+                    .from('cuotas')
                     .select(`
                         id,
-                        cliente_id,
-                        monto_prestado,
-                        cuota_diaria,
-                        total_dias,
-                        fecha_inicio,
+                        prestamo_id,
+                        numero_cuota,
+                        monto_cuota,
+                        saldo_pendiente,
+                        fecha_vencimiento,
                         estado,
-                        clients:cliente_id (
+                        prestamos:prestamo_id (
                             id,
-                            nombre,
-                            cedula
+                            cliente_id,
+                            cuota_diaria,
+                            estado,
+                            monto_prestado,
+                            total_dias,
+                            cobrador_id,
+                            clients:cliente_id (
+                                id,
+                                nombre,
+                                cedula,
+                                telefono
+                            )
                         )
                     `)
-                    .eq('panel_id', APP.collectorContext.panelId)
-                    .eq('cobrador_id', APP.collectorContext.collectorId)
-                    .in('estado', ['activo', 'vencido'])
-                    .order('fecha_inicio', { ascending: false });
+                    .eq('prestamos.cobrador_id', APP.collectorContext.collectorId)
+                    .lte('fecha_vencimiento', today)
+                    .neq('estado', 'pagada')
+                    .order('fecha_vencimiento', { ascending: true });
 
-                if (loansError) throw loansError;
+                if (cuotasError) {
+                    console.error('Error loading cuotas:', cuotasError);
+                    throw cuotasError;
+                }
 
-                console.log('📊 Préstamos activos encontrados:', loans?.length || 0);
-                console.log('Préstamos:', loans);
+                console.log(`📊 Cuotas pendientes encontradas: ${cuotas?.length || 0}`);
 
-                if (!loans || loans.length === 0) {
-                    container.innerHTML = '<div class="empty-state"><h3>No hay préstamos activos</h3><p>No tienes préstamos asignados</p></div>';
+                if (!cuotas || cuotas.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><h3>✅ ¡Todo al día!</h3><p>No hay cuotas pendientes para hoy</p></div>';
                     return;
                 }
 
-                // 🆕 Guardar préstamos en cache para uso offline
-                console.log('💾 Guardando préstamos en cache para offline...');
-                await saveToCache('prestamos_detalle_cache', loans);
-                console.log('✅ Préstamos guardados en cache');
-
-                // For each loan, get cuotas summary
-                const loansWithDetails = await Promise.all(loans.map(async (loan) => {
-                    const { data: cuotas } = await APP.supabase
-                        .from('cuotas')
-                        .select('estado, saldo_pendiente, fecha_vencimiento, monto_cuota')
-                        .eq('prestamo_id', loan.id)
-                        .order('numero_cuota');
-                    
-                    const totalCuotas = cuotas?.length || 0;
-                    const paidCuotas = cuotas?.filter(c => c.estado === 'pagada').length || 0;
-                    const pendingAmount = cuotas?.reduce((sum, c) => {
-                        if (c.estado !== 'pagada') {
-                            return sum + Number(c.saldo_pendiente || 0);
-                        }
-                        return sum;
-                    }, 0) || 0;
-                    
-                    // Calculate overdue days
-                    let maxOverdue = 0;
-                    const todayDate = new Date(today);
-                    cuotas?.forEach(c => {
-                        if (c.estado !== 'pagada') {
-                            const dueDate = new Date(c.fecha_vencimiento);
-                            if (dueDate < todayDate) {
-                                const diffDays = Math.floor((todayDate - dueDate) / (1000 * 60 * 60 * 24));
-                                maxOverdue = Math.max(maxOverdue, diffDays);
-                            }
-                        }
-                    });
-                    
-                    const totalAmount = loan.cuota_diaria * loan.total_dias;
-                    const paidAmount = totalAmount - pendingAmount;
-                    const progress = totalAmount > 0 ? Math.round((paidAmount / totalAmount) * 100) : 0;
+                // Calcular días de mora para cada cuota
+                const todayDate = new Date(today);
+                const cuotasWithOverdue = cuotas.map(cuota => {
+                    const dueDate = new Date(cuota.fecha_vencimiento);
+                    const diffTime = todayDate - dueDate;
+                    const daysOverdue = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
                     
                     return {
-                        ...loan,
-                        totalCuotas,
-                        paidCuotas,
-                        pendingAmount,
-                        daysOverdue: maxOverdue,
-                        totalAmount,
-                        paidAmount,
-                        progress
+                        ...cuota,
+                        daysOverdue
                     };
-                }));
-
-                // 🆕 FILTRAR solo préstamos con cuotas pendientes (saldo > 0)
-                const loansWithPending = loansWithDetails.filter(loan => {
-                    return loan.pendingAmount > 0 && loan.paidCuotas < loan.totalCuotas;
                 });
-                
-                console.log(`✅ Préstamos con detalles: ${loansWithDetails.length} total, ${loansWithPending.length} con cuotas pendientes`);
+
+                console.log(`✅ Cuotas procesadas con mora`);
                 
                 // Store data and render with pagination
-                PAGINATION_STATE.pendientes.allData = loansWithPending;
-                PAGINATION_STATE.pendientes.filteredData = loansWithPending;
+                PAGINATION_STATE.pendientes.allData = cuotasWithOverdue;
+                PAGINATION_STATE.pendientes.filteredData = cuotasWithOverdue;
                 PAGINATION_STATE.pendientes.currentPage = 1;
                 
                 // Setup search listener
-                setupSearchListener('pendientes', ['clients.nombre', 'clients.cedula'], renderPendientes);
+                setupSearchListener('pendientes', ['prestamos.clients.nombre', 'prestamos.clients.cedula'], renderPendientes);
                 
                 // Render with pagination
-                renderPendientes(loansWithPending);
+                renderPendientes(cuotasWithOverdue);
                 
                 // 🆕 Save to cache for offline use
-                await saveToCache('cuotas_cache', loansWithDetails);
+                await saveToCache('cuotas_cache', cuotasWithOverdue);
                 console.log('💾 Cuotas guardadas en cache');
-                
-                // 🆕 Cache préstamos completos para pagos/recogidas offline
-                console.log('💾 Cacheando préstamos completos...');
-                for (const loan of loans) {
-                    await cachePrestamoCompleto(loan.id);
-                }
-                console.log(`✅ ${loans.length} préstamos cacheados completos`);
             } catch (error) {
                 console.error('Error loading pending loans:', error);
                 console.error('Error details:', {
