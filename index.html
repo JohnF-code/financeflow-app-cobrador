@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v4.9 (iPhone Debug)</title>
-    <!-- Cache Buster: v4.9.<?php echo time(); ?> -->
+    <title>Cobrador App - v5.0 (Cache Ready Alert)</title>
+    <!-- Cache Buster: v5.0.<?php echo time(); ?> -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js?v=4.9"></script>
-    <script src="crypto.js?v=4.9"></script>
-    <script src="sync.js?v=4.9"></script>
-    <script src="iphone-debug.js?v=4.9"></script>
+    <script src="db.js?v=5.0"></script>
+    <script src="crypto.js?v=5.0"></script>
+    <script src="sync.js?v=5.0"></script>
+    <script src="iphone-debug.js?v=5.0"></script>
     <style display="none">
         * {
             margin: 0;
@@ -983,7 +983,14 @@
                 
                 // Mostrar confirmación de éxito
                 banner.classList.add('ready');
-                updateBanner('✅', '¡Listo para trabajar offline!', 'Todos los datos descargados correctamente');
+                const totalCached = (clientes?.length || 0) + (prestamos?.length || 0) + (cuotas?.length || 0);
+                updateBanner('✅', '¡Listo para trabajar offline!', `${clientes?.length || 0} clientes, ${prestamos?.length || 0} créditos, ${cuotas?.length || 0} cuotas`);
+                
+                // Alert para iPhone
+                const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+                if (isIOS) {
+                    alert(`✅ CACHE LISTO\n\nDatos descargados:\n• ${clientes?.length || 0} clientes\n• ${prestamos?.length || 0} créditos\n• ${cuotas?.length || 0} cuotas\n\n¡Ahora puedes trabajar OFFLINE!`);
+                }
                 
                 // Sincronizar datos pendientes
                 await syncOfflineData();
@@ -2343,6 +2350,13 @@
 
                     const clientes = await loadFromCache('clientes_cache');
                     console.log('👥 Clientes cache:', clientes?.length || 0);
+                    
+                    // Si no hay clientes en cache, mostrar error
+                    if (!clientes || clientes.length === 0) {
+                        console.error('❌ No hay clientes en cache');
+                        alert('⚠️ NO HAY DATOS OFFLINE\n\nPara usar esta función:\n\n1. Conéctate a INTERNET\n2. Abre la app y espera 10 segundos\n3. Navega: Clientes → Créditos → Pagos\n4. Verás banner "Listo para offline"\n5. Ahora SÍ podrás trabajar sin conexión\n\n❌ Actualmente: 0 clientes en cache');
+                        return;
+                    }
                     
                     const creditos = await loadFromCache('creditos_cache');
                     console.log('💰 Créditos cache:', creditos?.length || 0);
