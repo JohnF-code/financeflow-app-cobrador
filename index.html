@@ -2319,10 +2319,18 @@
             APP.isOnline = navigator.onLine;
             console.log('📡 Estado actualizado - APP.isOnline:', APP.isOnline);
             
+            // 🍎 iPhone: mostrar diagnóstico en pantalla
+            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+            
             try {
                 // Offline fallback: construir modal usando cache local
                 if (!APP.isOnline) {
                     console.log('🔴🍎 Offline (iPhone/Android): construyendo modal crédito desde cache');
+                    
+                    if (isIOS) {
+                        alert('iPhone Offline detectado\nConstruyendo modal...');
+                    }
+                    
                     const settingsRows = await loadFromCache('panel_settings_cache');
                     console.log('📦 Settings rows cargadas:', settingsRows?.length || 0);
                     const settings = {};
@@ -2339,6 +2347,11 @@
 
                     const clientes = await loadFromCache('clientes_cache');
                     console.log('👥 Clientes cache:', clientes?.length || 0, clientes);
+                    
+                    if (isIOS) {
+                        alert('Cache cargado:\nClientes: ' + (clientes?.length || 0));
+                    }
+                    
                     const creditos = await loadFromCache('creditos_cache');
                     console.log('💰 Créditos cache:', creditos?.length || 0);
                     
@@ -2664,8 +2677,15 @@
                             document.body.appendChild(overlay);
                             
                             console.log('✅✅✅ Modal iPhone insertado con DOM puro (sin template literals)');
+                            
+                            if (isIOS) {
+                                alert('Modal insertado OK\nBusca un cliente o selecciona de la lista');
+                            }
                         } catch (e) {
                             console.error('❌ Error creando modal iPhone:', e);
+                            if (isIOS) {
+                                alert('ERROR creando modal:\n' + e.message);
+                            }
                             showError('Error: ' + e.message);
                             return;
                         }
