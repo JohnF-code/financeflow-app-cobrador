@@ -2312,6 +2312,12 @@
         // Show create credit form (con overlay)
         async function showCreateCreditForm() {
             console.log('🆕 showCreateCreditForm called');
+            console.log('📡 Estado conexión - APP.isOnline:', APP.isOnline);
+            console.log('📡 Estado conexión - navigator.onLine:', navigator.onLine);
+            
+            // Forzar actualización del estado online
+            APP.isOnline = navigator.onLine;
+            console.log('📡 Estado actualizado - APP.isOnline:', APP.isOnline);
             
             try {
                 // Offline fallback: construir modal usando cache local
