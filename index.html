@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v5.0 (Cache Ready Alert)</title>
-    <!-- Cache Buster: v5.0.<?php echo time(); ?> -->
+    <title>Cobrador App - v5.1 (Cache Debug)</title>
+    <!-- Cache Buster: v5.1.<?php echo time(); ?> -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js?v=5.0"></script>
-    <script src="crypto.js?v=5.0"></script>
-    <script src="sync.js?v=5.0"></script>
-    <script src="iphone-debug.js?v=5.0"></script>
+    <script src="db.js?v=5.1"></script>
+    <script src="crypto.js?v=5.1"></script>
+    <script src="sync.js?v=5.1"></script>
+    <script src="iphone-debug.js?v=5.1"></script>
     <style display="none">
         * {
             margin: 0;
@@ -2348,13 +2348,28 @@
                     const cuotaMinima = settings.cuota_minima || 5000;
                     console.log('⚙️ Settings OK:', { minCuotas, maxCuotas, cuotaMinima });
 
-                    const clientes = await loadFromCache('clientes_cache');
-                    console.log('👥 Clientes cache:', clientes?.length || 0);
+                    console.log('🔍 Intentando cargar cache...');
+                    console.log('🔍 typeof loadFromCache:', typeof loadFromCache);
+                    console.log('🔍 DB.isSupported:', DB?.isSupported);
+                    console.log('🔍 DB.instance:', DB?.instance);
+                    
+                    let clientes;
+                    try {
+                        clientes = await loadFromCache('clientes_cache');
+                        console.log('👥 Clientes cache resultado:', clientes);
+                        console.log('👥 Clientes cache tipo:', typeof clientes);
+                        console.log('👥 Clientes cache length:', clientes?.length || 0);
+                    } catch (e) {
+                        console.error('❌ Error al cargar clientes:', e);
+                        alert('ERROR técnico:\n' + e.message);
+                        return;
+                    }
                     
                     // Si no hay clientes en cache, mostrar error
                     if (!clientes || clientes.length === 0) {
                         console.error('❌ No hay clientes en cache');
-                        alert('⚠️ NO HAY DATOS OFFLINE\n\nPara usar esta función:\n\n1. Conéctate a INTERNET\n2. Abre la app y espera 10 segundos\n3. Navega: Clientes → Créditos → Pagos\n4. Verás banner "Listo para offline"\n5. Ahora SÍ podrás trabajar sin conexión\n\n❌ Actualmente: 0 clientes en cache');
+                        console.error('❌ clientes es:', clientes);
+                        alert('⚠️ NO HAY DATOS OFFLINE\n\nPara usar esta función:\n\n1. Conéctate a INTERNET\n2. Abre la app y espera 10 segundos\n3. Navega: Clientes → Créditos → Pagos\n4. Verás banner "Listo para offline"\n5. Ahora SÍ podrás trabajar sin conexión\n\n❌ Cache guardado: 49 clientes\n❌ Pero al leer: ' + (clientes?.length || 0) + ' clientes');
                         return;
                     }
                     

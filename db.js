@@ -235,6 +235,8 @@ async function saveToCache(storeName, data) {
  * @returns {Array} Datos del cache
  */
 async function loadFromCache(storeName) {
+    console.log(`🔍 loadFromCache(${storeName}) iniciando...`);
+    
     if (!DB.isSupported || !DB.instance) {
         console.warn('⚠️ IndexedDB no disponible');
         return [];
@@ -242,23 +244,36 @@ async function loadFromCache(storeName) {
 
     try {
         const db = DB.instance;
+        console.log(`🔍 DB instance OK, creando transacción para ${storeName}...`);
+        
         const tx = db.transaction([storeName], 'readonly');
         const store = tx.objectStore(storeName);
         const request = store.getAll();
+        console.log(`🔍 Request getAll() creado`);
 
         return new Promise((resolve, reject) => {
             request.onsuccess = async () => {
                 const data = request.result || [];
+                console.log(`🔍 getAll() success, items raw: ${data.length}`);
+                console.log(`🔍 CRYPTO.isEnabled: ${CRYPTO.isEnabled}`);
                 
                 // Descifrar si es necesario
                 if (CRYPTO.isEnabled && data.length > 0) {
-                    const decrypted = await Promise.all(
-                        data.map(item => decryptObject(item))
-                    );
-                    console.log(`📂 Cache leído: ${storeName} (${decrypted.length} items)`);
-                    resolve(decrypted);
+                    console.log(`🔍 Intentando descifrar ${data.length} items...`);
+                    try {
+                        const decrypted = await Promise.all(
+                            data.map(item => decryptObject(item))
+                        );
+                        console.log(`📂 Cache leído y descifrado: ${storeName} (${decrypted.length} items)`);
+                        resolve(decrypted);
+                    } catch (decryptError) {
+                        console.error(`❌ Error descifrando ${storeName}:`, decryptError);
+                        // Intentar devolver sin descifrar
+                        console.log(`⚠️ Devolviendo datos sin descifrar`);
+                        resolve(data);
+                    }
                 } else {
-                    console.log(`📂 Cache leído: ${storeName} (${data.length} items)`);
+                    console.log(`📂 Cache leído sin cifrado: ${storeName} (${data.length} items)`);
                     resolve(data);
                 }
             };
