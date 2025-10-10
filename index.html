@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v4.7 (Seguridad + Crédito Offline)</title>
-    <!-- Cache Buster: v4.7.<?php echo time(); ?> -->
+    <title>Cobrador App - v4.8 (iPhone Modal Fix)</title>
+    <!-- Cache Buster: v4.8.<?php echo time(); ?> -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js?v=4.7"></script>
-    <script src="crypto.js?v=4.7"></script>
-    <script src="sync.js?v=4.7"></script>
-    <script src="iphone-debug.js?v=4.7"></script>
+    <script src="db.js?v=4.8"></script>
+    <script src="crypto.js?v=4.8"></script>
+    <script src="sync.js?v=4.8"></script>
+    <script src="iphone-debug.js?v=4.8"></script>
     <style display="none">
         * {
             margin: 0;
@@ -2669,6 +2669,113 @@
                             document.body.appendChild(overlay);
                             
                             console.log('✅✅✅ Modal iPhone insertado con DOM puro (sin template literals)');
+                            
+                            // Configurar event listeners para iPhone inmediatamente
+                            setTimeout(() => {
+                                console.log('🍎 Configurando listeners para iPhone...');
+                                const searchInput = document.getElementById('clientSearchInput');
+                                const searchResults = document.getElementById('searchResults');
+                                
+                                if (searchInput && searchResults) {
+                                    const normalize = (v) => (v == null ? '' : String(v)).toLowerCase();
+                                    const runFilter = () => {
+                                        try {
+                                            const q = normalize(searchInput.value);
+                                            console.log('🍎 Filtrando:', q);
+                                            const filtered = (clientes || []).filter(c => 
+                                                normalize(c.nombre).includes(q) || 
+                                                normalize(c.cedula).includes(q)
+                                            ).slice(0, 20);
+                                            
+                                            searchResults.innerHTML = '';
+                                            filtered.forEach(c => {
+                                                const div = document.createElement('div');
+                                                div.style.cssText = 'padding:10px;border-bottom:1px solid #eee;cursor:pointer;';
+                                                div.onclick = () => selectClientForCredit(c.id, c.nombre||'', c.cedula||'');
+                                                
+                                                const nameDiv = document.createElement('div');
+                                                nameDiv.textContent = c.nombre || '';
+                                                nameDiv.style.cssText = 'font-weight:600;';
+                                                div.appendChild(nameDiv);
+                                                
+                                                const cedulaDiv = document.createElement('div');
+                                                cedulaDiv.textContent = '🆔 ' + (c.cedula || '');
+                                                cedulaDiv.style.cssText = 'font-size:12px;color:#666;';
+                                                div.appendChild(cedulaDiv);
+                                                
+                                                searchResults.appendChild(div);
+                                            });
+                                            
+                                            if (filtered.length === 0) {
+                                                searchResults.innerHTML = '<div style="padding:10px;color:#999;text-align:center;">No se encontraron resultados</div>';
+                                            }
+                                        } catch (e) {
+                                            console.error('🍎 Error en filtro:', e);
+                                        }
+                                    };
+                                    
+                                    ['input', 'keyup', 'change', 'search'].forEach(evt => 
+                                        searchInput.addEventListener(evt, runFilter)
+                                    );
+                                    console.log('🍎 Buscador configurado');
+                                }
+                                
+                                // Configurar cálculo automático
+                                const amountInput = document.getElementById('creditAmount');
+                                const quotaInput = document.getElementById('creditDailyQuota');
+                                
+                                if (amountInput && quotaInput) {
+                                    const calculateCredit = () => {
+                                        try {
+                                            const amount = Number((amountInput.value||'').replace(/[^\d]/g, '')) || 0;
+                                            const dailyQuota = Number((quotaInput.value||'').replace(/[^\d]/g, '')) || 0;
+                                            
+                                            if (amount > 0 && dailyQuota > 0) {
+                                                const baseInterestRate = 0.2;
+                                                const totalWithBaseInterest = amount * (1 + baseInterestRate);
+                                                const idealInstallment = totalWithBaseInterest / 30;
+                                                let adjustedInterestRate = baseInterestRate;
+                                                let totalToPay = totalWithBaseInterest;
+                                                
+                                                if (dailyQuota < idealInstallment) {
+                                                    adjustedInterestRate = baseInterestRate * (idealInstallment / dailyQuota);
+                                                    totalToPay = amount * (1 + adjustedInterestRate);
+                                                }
+                                                
+                                                const days = Math.ceil(totalToPay / dailyQuota);
+                                                const realTotal = days * dailyQuota;
+                                                
+                                                const daysEl = document.getElementById('creditCalculatedDays');
+                                                const totalEl = document.getElementById('creditTotal');
+                                                
+                                                if (daysEl) {
+                                                    daysEl.textContent = days + ' días';
+                                                    if (days < minCuotas || days > maxCuotas) {
+                                                        daysEl.style.background = '#fee2e2';
+                                                        daysEl.style.color = '#991b1b';
+                                                    } else {
+                                                        daysEl.style.background = '#e0e7ff';
+                                                        daysEl.style.color = '#1e3a8a';
+                                                    }
+                                                }
+                                                
+                                                if (totalEl) {
+                                                    totalEl.textContent = '$' + realTotal.toLocaleString();
+                                                }
+                                            }
+                                        } catch (e) {
+                                            console.error('🍎 Error calculando:', e);
+                                        }
+                                    };
+                                    
+                                    ['input', 'keyup', 'change'].forEach(evt => {
+                                        amountInput.addEventListener(evt, calculateCredit);
+                                        quotaInput.addEventListener(evt, calculateCredit);
+                                    });
+                                    console.log('🍎 Cálculo automático configurado');
+                                }
+                            }, 100);
+                            
                         } catch (e) {
                             console.error('❌ Error creando modal iPhone:', e);
                             showError('Error iPhone: ' + e.message);
