@@ -2338,12 +2338,20 @@
                     console.log('⚙️ Settings OK:', { minCuotas, maxCuotas, cuotaMinima });
 
                     const clientes = await loadFromCache('clientes_cache');
-                    console.log('👥 Clientes cache:', clientes?.length || 0);
+                    console.log('👥 Clientes cache:', clientes?.length || 0, clientes);
                     const creditos = await loadFromCache('creditos_cache');
                     console.log('💰 Créditos cache:', creditos?.length || 0);
-                    const activeByClient = new Set((creditos || []).filter(c => c.estado === 'activo').map(c => (c.cliente_id || (c.clients && c.clients.id))).filter(Boolean));
-                    const clientsWithoutCredit = (clientes || []).filter(c => !activeByClient.has(c.id)).slice(0, 5);
-                    console.log('✨ Clientes sin crédito:', clientsWithoutCredit.length);
+                    
+                    let activeByClient, clientsWithoutCredit;
+                    try {
+                        activeByClient = new Set((creditos || []).filter(c => c.estado === 'activo').map(c => (c.cliente_id || (c.clients && c.clients.id))).filter(Boolean));
+                        clientsWithoutCredit = (clientes || []).filter(c => !activeByClient.has(c.id)).slice(0, 5);
+                        console.log('✨ Clientes sin crédito:', clientsWithoutCredit.length);
+                    } catch (e) {
+                        console.error('❌ Error procesando clientes:', e);
+                        clientsWithoutCredit = (clientes || []).slice(0, 5);
+                        console.log('🔄 Usando todos los clientes:', clientsWithoutCredit.length);
+                    }
 
                     let withoutCreditHTML = '';
                     try {
@@ -2365,7 +2373,10 @@
 
                     // Insertar modal básico (mismo layout que online)
                     console.log('📝 Insertando modal en DOM...');
-                    document.body.insertAdjacentHTML('beforeend', `
+                    console.log('📝 withoutCreditHTML length:', withoutCreditHTML.length);
+                    console.log('📝 Generando HTML modal...');
+                    
+                    const modalHTML = `
                         <div id="creditModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;">
                             <div style="background:white;border-radius:15px;padding:20px;max-width:450px;width:100%;max-height:90vh;overflow-y:auto;position:relative;">
                                 <button type="button" onclick="hideCreateCreditForm()" aria-label="Cerrar" 
@@ -2431,7 +2442,17 @@
                                 </form>
                             </div>
                         </div>
-                    `);
+                    `;
+                    
+                    console.log('📝 Modal HTML generado, longitud total:', modalHTML.length);
+                    try {
+                        document.body.insertAdjacentHTML('beforeend', modalHTML);
+                        console.log('✅ Modal insertado en DOM');
+                    } catch (e) {
+                        console.error('❌ Error insertando modal:', e);
+                        showError('Error mostrando formulario: ' + e.message);
+                        return;
+                    }
 
                     // Buscar en cache por nombre/cedula + calcular cuotas automáticamente
                     console.log('🔍 Configurando buscador offline...');
