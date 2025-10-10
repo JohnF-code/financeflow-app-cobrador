@@ -13,8 +13,84 @@ const DB_VERSION = 2; // 🆕 v2: Agregar prestamos_detalle_cache y panel_settin
 const DB = {
     instance: null,
     isReady: false,
-    isSupported: true
+    isSupported: true,
+    isPersistent: false // 🆕 Estado de persistencia de storage
 };
+
+/**
+ * 🔒 Solicitar persistencia de almacenamiento
+ * Evita que el navegador elimine IndexedDB cuando necesita espacio
+ */
+async function requestPersistentStorage() {
+    console.log('🔒 Solicitando persistencia de almacenamiento...');
+    
+    try {
+        // Verificar soporte
+        if (!navigator.storage || !navigator.storage.persist) {
+            console.warn('⚠️ Storage API no soportada en este navegador');
+            return false;
+        }
+
+        // Verificar si ya es persistente
+        const isPersisted = await navigator.storage.persisted();
+        if (isPersisted) {
+            console.log('✅ Almacenamiento YA es persistente');
+            DB.isPersistent = true;
+            return true;
+        }
+
+        // Solicitar persistencia
+        const granted = await navigator.storage.persist();
+        if (granted) {
+            console.log('✅ Persistencia de almacenamiento CONCEDIDA');
+            DB.isPersistent = true;
+            
+            // Mostrar cuota de almacenamiento disponible
+            if (navigator.storage && navigator.storage.estimate) {
+                const estimate = await navigator.storage.estimate();
+                const usedMB = (estimate.usage / (1024 * 1024)).toFixed(2);
+                const totalMB = (estimate.quota / (1024 * 1024)).toFixed(2);
+                const percentUsed = ((estimate.usage / estimate.quota) * 100).toFixed(1);
+                console.log(`📊 Almacenamiento: ${usedMB}MB / ${totalMB}MB (${percentUsed}%)`);
+            }
+            
+            return true;
+        } else {
+            console.warn('⚠️ Persistencia NO concedida - datos pueden eliminarse si el navegador necesita espacio');
+            DB.isPersistent = false;
+            return false;
+        }
+    } catch (error) {
+        console.error('❌ Error solicitando persistencia:', error);
+        return false;
+    }
+}
+
+/**
+ * 📊 Obtener información de almacenamiento
+ */
+async function getStorageInfo() {
+    try {
+        if (!navigator.storage || !navigator.storage.estimate) {
+            return null;
+        }
+
+        const estimate = await navigator.storage.estimate();
+        const isPersisted = await navigator.storage.persisted();
+        
+        return {
+            usage: estimate.usage,
+            quota: estimate.quota,
+            usageMB: (estimate.usage / (1024 * 1024)).toFixed(2),
+            quotaMB: (estimate.quota / (1024 * 1024)).toFixed(2),
+            percentUsed: ((estimate.usage / estimate.quota) * 100).toFixed(1),
+            isPersistent: isPersisted
+        };
+    } catch (error) {
+        console.error('Error obteniendo info de storage:', error);
+        return null;
+    }
+}
 
 // Función helper para generar UUID (fallback si crypto.randomUUID no está disponible)
 function generateUUID() {
@@ -35,6 +111,9 @@ function generateUUID() {
  */
 async function initDB() {
     console.log('🔧 Inicializando IndexedDB...');
+    
+    // 🔒 Solicitar persistencia PRIMERO (antes de crear la BD)
+    await requestPersistentStorage();
     
     // Verificar soporte
     if (!window.indexedDB) {

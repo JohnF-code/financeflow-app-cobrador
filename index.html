@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v6.3 Clean</title>
-    <!-- Cache Buster: v6.3.<?php echo time(); ?> -->
+    <title>Cobrador App - v7.0 Persistent</title>
+    <!-- Cache Buster: v7.0.<?php echo time(); ?> -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js?v=6.3"></script>
-    <script src="crypto.js?v=6.3"></script>
-    <script src="sync.js?v=6.3"></script>
-    <script src="iphone-debug.js?v=6.3"></script>
+    <script src="db.js?v=7.0"></script>
+    <script src="crypto.js?v=7.0"></script>
+    <script src="sync.js?v=7.0"></script>
+    <script src="iphone-debug.js?v=7.0"></script>
     <style display="none">
         * {
             margin: 0;
@@ -1072,6 +1072,41 @@
             }
         }
 
+        // 🆕 Mostrar información de almacenamiento
+        async function showStorageInfo() {
+            try {
+                const info = await getStorageInfo();
+                
+                if (!info) {
+                    alert('ℹ️ Información de almacenamiento no disponible en este navegador');
+                    return;
+                }
+
+                const persistIcon = info.isPersistent ? '🔒 PROTEGIDO' : '⚠️ NO PROTEGIDO';
+                const persistMsg = info.isPersistent 
+                    ? 'Los datos están protegidos contra eliminación automática'
+                    : 'Los datos pueden eliminarse si el navegador necesita espacio.\n\nSolución: Instala la app como PWA o agrega el sitio a favoritos.';
+
+                const message = `
+📊 INFORMACIÓN DE ALMACENAMIENTO
+
+${persistIcon}
+${persistMsg}
+
+💾 Espacio usado: ${info.usageMB} MB
+📦 Espacio total: ${info.quotaMB} MB
+📈 Porcentaje: ${info.percentUsed}%
+
+Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
+                `.trim();
+
+                alert(message);
+            } catch (error) {
+                console.error('Error mostrando info de storage:', error);
+                alert('Error al obtener información de almacenamiento');
+            }
+        }
+
         // Check GPS on app start
         function checkGpsOnStart() {
             // Just init the app directly without GPS lock
@@ -1300,9 +1335,22 @@
                 
                 addDebugLog(`🎉 PROCESO COMPLETADO`);
 
+                // Obtener info de almacenamiento
+                const storageInfo = await getStorageInfo();
+                let storageText = '';
+                if (storageInfo) {
+                    storageText = ` • ${storageInfo.usageMB}MB usados`;
+                    if (storageInfo.isPersistent) {
+                        storageText += ' 🔒';
+                        addDebugLog(`🔒 Datos protegidos contra eliminación automática`);
+                    } else {
+                        addDebugLog(`⚠️ Persistencia no garantizada - datos pueden eliminarse si el navegador necesita espacio`);
+                    }
+                }
+
                 // Mostrar confirmación de éxito
                 banner.classList.add('ready');
-                updateBanner('✅', '¡Listo para trabajar offline!', `${clientes?.length || 0} clientes, ${loansWithDetails?.length || 0} préstamos listos`);
+                updateBanner('✅', '¡Listo para trabajar offline!', `${clientes?.length || 0} clientes, ${loansWithDetails?.length || 0} préstamos${storageText}`);
                 
                 // Sincronizar datos pendientes
                 await syncOfflineData();
