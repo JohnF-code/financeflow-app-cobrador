@@ -2311,25 +2311,21 @@
 
         // Show create credit form (con overlay)
         async function showCreateCreditForm() {
-            console.log('🆕 showCreateCreditForm called');
-            console.log('📡 Estado conexión - APP.isOnline:', APP.isOnline);
-            console.log('📡 Estado conexión - navigator.onLine:', navigator.onLine);
-            
-            // Forzar actualización del estado online
-            APP.isOnline = navigator.onLine;
-            console.log('📡 Estado actualizado - APP.isOnline:', APP.isOnline);
-            
-            // 🍎 iPhone: mostrar diagnóstico en pantalla
-            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-            
             try {
+                console.log('🆕 showCreateCreditForm called');
+                console.log('📡 Estado conexión - APP.isOnline:', APP.isOnline);
+                console.log('📡 Estado conexión - navigator.onLine:', navigator.onLine);
+                
+                // Forzar actualización del estado online
+                APP.isOnline = navigator.onLine;
+                console.log('📡 Estado actualizado - APP.isOnline:', APP.isOnline);
+                
+                // 🍎 iPhone: mostrar diagnóstico en pantalla
+                const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+                
                 // Offline fallback: construir modal usando cache local
                 if (!APP.isOnline) {
                     console.log('🔴🍎 Offline (iPhone/Android): construyendo modal crédito desde cache');
-                    
-                    if (isIOS) {
-                        alert('iPhone Offline detectado\nConstruyendo modal...');
-                    }
                     
                     const settingsRows = await loadFromCache('panel_settings_cache');
                     console.log('📦 Settings rows cargadas:', settingsRows?.length || 0);
@@ -2346,11 +2342,7 @@
                     console.log('⚙️ Settings OK:', { minCuotas, maxCuotas, cuotaMinima });
 
                     const clientes = await loadFromCache('clientes_cache');
-                    console.log('👥 Clientes cache:', clientes?.length || 0, clientes);
-                    
-                    if (isIOS) {
-                        alert('Cache cargado:\nClientes: ' + (clientes?.length || 0));
-                    }
+                    console.log('👥 Clientes cache:', clientes?.length || 0);
                     
                     const creditos = await loadFromCache('creditos_cache');
                     console.log('💰 Créditos cache:', creditos?.length || 0);
@@ -2677,16 +2669,9 @@
                             document.body.appendChild(overlay);
                             
                             console.log('✅✅✅ Modal iPhone insertado con DOM puro (sin template literals)');
-                            
-                            if (isIOS) {
-                                alert('Modal insertado OK\nBusca un cliente o selecciona de la lista');
-                            }
                         } catch (e) {
                             console.error('❌ Error creando modal iPhone:', e);
-                            if (isIOS) {
-                                alert('ERROR creando modal:\n' + e.message);
-                            }
-                            showError('Error: ' + e.message);
+                            showError('Error iPhone: ' + e.message);
                             return;
                         }
                     } else {
@@ -3053,10 +3038,11 @@
                     
                     document.getElementById('searchResults').innerHTML = resultsHTML || '<div style="padding:10px;color:#999;text-align:center;">No se encontraron resultados</div>';
                 });
-            } catch (error) {
-                console.error('Error loading credit form:', error);
-                showError('Error al cargar el formulario: ' + error.message);
-            }
+                } catch (error) {
+                    console.error('❌❌❌ Error general en showCreateCreditForm:', error);
+                    console.error('Stack:', error.stack);
+                    showError('Error al cargar el formulario: ' + error.message);
+                }
         }
         
         // Select client for credit
