@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v5.9 Debug</title>
-    <!-- Cache Buster: v5.9.<?php echo time(); ?> -->
+    <title>Cobrador App - v6.0 Debug</title>
+    <!-- Cache Buster: v6.0.<?php echo time(); ?> -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js?v=5.9"></script>
-    <script src="crypto.js?v=5.9"></script>
-    <script src="sync.js?v=5.9"></script>
-    <script src="iphone-debug.js?v=5.9"></script>
+    <script src="db.js?v=6.0"></script>
+    <script src="crypto.js?v=6.0"></script>
+    <script src="sync.js?v=6.0"></script>
+    <script src="iphone-debug.js?v=6.0"></script>
     <style display="none">
         * {
             margin: 0;
@@ -1128,55 +1128,60 @@
                 updateBanner('💰', 'Descargando préstamos activos...', 'Paso 2 de 5 ⏳');
                 await new Promise(resolve => setTimeout(resolve, 3000));
                 
-                // Intentar sin filtro de estado primero para debug
+                // Traer préstamos del COBRADOR (igual que loadPendingQuotas) con relaciones anidadas
                 const { data: prestamos, error: prestamosError } = await APP.supabase
                     .from('prestamos')
-                    .select('id, cliente_id, cuota_diaria, estado, saldo_total_pendiente, monto_total, fecha_inicio, fecha_fin, monto_prestado, total_dias')
+                    .select(`
+                        id,
+                        cliente_id,
+                        monto_prestado,
+                        cuota_diaria,
+                        total_dias,
+                        fecha_inicio,
+                        estado,
+                        saldo_total_pendiente,
+                        monto_total,
+                        fecha_fin,
+                        clients:cliente_id (
+                            id,
+                            nombre,
+                            cedula,
+                            telefono
+                        )
+                    `)
                     .eq('panel_id', APP.collectorContext.panelId)
+                    .eq('cobrador_id', APP.collectorContext.collectorId)
+                    .in('estado', ['activo', 'vencido'])
                     .order('fecha_inicio', { ascending: false });
                 
                 if (prestamosError) {
                     addDebugLog(`❌ Error préstamos: ${prestamosError.message}`);
+                    addDebugLog(`   Code: ${prestamosError.code}`);
                 } else {
-                    addDebugLog(`📥 Recibido: ${prestamos?.length || 0} préstamos (todos los estados)`);
+                    addDebugLog(`📥 Recibido: ${prestamos?.length || 0} préstamos asignados`);
                     if (prestamos?.length > 0) {
                         const estados = prestamos.map(p => p.estado).filter((v, i, a) => a.indexOf(v) === i);
-                        addDebugLog(`📊 Estados encontrados: ${estados.join(', ')}`);
+                        addDebugLog(`📊 Estados: ${estados.join(', ')}`);
+                        addDebugLog(`👤 Primer préstamo cliente: ${prestamos[0].clients?.nombre || 'SIN NOMBRE'}`);
+                    } else {
+                        addDebugLog(`⚠️ No tienes préstamos asignados como cobrador`);
                     }
                 }
                 
-                // Enriquecer con datos de clientes desde el cache local
-                if (prestamos?.length && clientes?.length) {
-                    addDebugLog(`🔗 Enriqueciendo préstamos con datos de clientes...`);
-                    const clientesMap = new Map(clientes.map(c => [c.id, c]));
-                    let enriched = 0;
-                    prestamos.forEach(p => {
-                        const cliente = clientesMap.get(p.cliente_id);
-                        if (cliente) {
-                            p.clients = {
-                                id: cliente.id,
-                                nombre: cliente.nombre,
-                                cedula: cliente.cedula,
-                                telefono: cliente.telefono
-                            };
-                            enriched++;
-                        }
-                    });
-                    addDebugLog(`✅ ${enriched}/${prestamos.length} préstamos enriquecidos`);
-                    addDebugLog(`💾 Guardando préstamos en cache...`);
+                // Guardar préstamos en cache (ya vienen con datos de clients desde Supabase)
+                if (prestamos?.length) {
+                    addDebugLog(`💾 Guardando ${prestamos.length} préstamos en cache...`);
                     await saveToCache('prestamos_detalle_cache', prestamos);
-                    addDebugLog(`✅ ${prestamos.length} préstamos guardados`);
-                    
+                    addDebugLog(`✅ Préstamos guardados`);
+
                     // Verificar
                     const verificar = await loadFromCache('prestamos_detalle_cache');
                     addDebugLog(`🔍 Verificación: ${verificar?.length || 0} préstamos leídos`);
                     if (verificar?.length > 0 && verificar[0].clients) {
-                        addDebugLog(`✅ Datos enriquecidos preservados: ${verificar[0].clients.nombre}`);
+                        addDebugLog(`✅ Datos OK: ${verificar[0].clients.nombre}`);
                     } else {
-                        addDebugLog(`⚠️ Datos enriquecidos perdidos en cache`);
+                        addDebugLog(`⚠️ Datos de cliente perdidos en cache`);
                     }
-                } else {
-                    addDebugLog(`⚠️ No hay préstamos o clientes para enriquecer`);
                 }
                 
                 // 3. Cache cuotas pendientes CON enriquecimiento
@@ -1979,6 +1984,11 @@
                     container.innerHTML = '<div class="empty-state"><h3>No hay préstamos activos</h3><p>No tienes préstamos asignados</p></div>';
                     return;
                 }
+
+                // 🆕 Guardar préstamos en cache para uso offline
+                console.log('💾 Guardando préstamos en cache para offline...');
+                await saveToCache('prestamos_detalle_cache', loans);
+                console.log('✅ Préstamos guardados en cache');
 
                 // For each loan, get cuotas summary
                 const loansWithDetails = await Promise.all(loans.map(async (loan) => {
