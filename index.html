@@ -2445,17 +2445,29 @@
                     `;
                     
                     console.log('📝 Modal HTML generado, longitud total:', modalHTML.length);
+                    console.log('🔍 Intentando insertar modal en DOM...');
+                    
                     try {
                         document.body.insertAdjacentHTML('beforeend', modalHTML);
-                        console.log('✅ Modal insertado en DOM');
+                        console.log('✅✅✅ Modal insertado en DOM exitosamente');
                     } catch (e) {
-                        console.error('❌ Error insertando modal:', e);
+                        console.error('❌❌❌ Error insertando modal:', e);
+                        console.error('❌ Stack:', e.stack);
                         showError('Error mostrando formulario: ' + e.message);
+                        return;
+                    }
+                    
+                    // Verificar que se insertó
+                    const modalCheck = document.getElementById('creditModal');
+                    console.log('🔍 Modal encontrado en DOM:', modalCheck ? 'SÍ' : 'NO');
+                    if (!modalCheck) {
+                        console.error('❌ Modal no encontrado después de insertar');
+                        showError('Modal no se pudo cargar');
                         return;
                     }
 
                     // Buscar en cache por nombre/cedula + calcular cuotas automáticamente
-                    console.log('🔍 Configurando buscador offline...');
+                    console.log('🔍 Configurando buscador y calculadora offline...');
                     setTimeout(() => {
                         const input = document.getElementById('clientSearchInput');
                         const results = document.getElementById('searchResults');
@@ -2489,9 +2501,13 @@
                         // Calcular cuotas automáticamente
                         const amountInput = document.getElementById('creditAmount');
                         const quotaInput = document.getElementById('creditDailyQuota');
+                        console.log('💰 Inputs encontrados:', { amountInput: !!amountInput, quotaInput: !!quotaInput });
+                        
                         function calculateCredit() {
-                            const amount = Number((amountInput?.value||'').replace(/[^\\d]/g, '')) || 0;
-                            const dailyQuota = Number((quotaInput?.value||'').replace(/[^\\d]/g, '')) || 0;
+                            try {
+                                const amount = Number((amountInput?.value||'').replace(/[^\d]/g, '')) || 0;
+                                const dailyQuota = Number((quotaInput?.value||'').replace(/[^\d]/g, '')) || 0;
+                                console.log('🧮 Calculando:', { amount, dailyQuota });
                             if (amount > 0 && dailyQuota > 0) {
                                 const baseInterestRate = 0.2;
                                 const totalWithBaseInterest = amount * (1 + baseInterestRate);
@@ -2516,11 +2532,20 @@
                                     daysEl.style.color = '#1e3a8a';
                                 }
                             }
+                            } catch (e) {
+                                console.error('❌ Error en calculateCredit:', e);
+                            }
                         }
-                        if (amountInput) amountInput.addEventListener('input', calculateCredit);
-                        if (quotaInput) quotaInput.addEventListener('input', calculateCredit);
+                        if (amountInput) {
+                            ['input','keyup','change'].forEach(evt => amountInput.addEventListener(evt, calculateCredit));
+                            console.log('✅ Listeners en creditAmount agregados');
+                        }
+                        if (quotaInput) {
+                            ['input','keyup','change'].forEach(evt => quotaInput.addEventListener(evt, calculateCredit));
+                            console.log('✅ Listeners en creditDailyQuota agregados');
+                        }
                         console.log('✅ Cálculo automático configurado');
-                    }, 100);
+                    }, 150);
 
                     console.log('✅ Modal offline insertado, retornando');
                     return; // No continuar con flujo online
