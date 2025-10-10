@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v5.3 Final</title>
-    <!-- Cache Buster: v5.3.<?php echo time(); ?> -->
+    <title>Cobrador App - v5.4</title>
+    <!-- Cache Buster: v5.4.<?php echo time(); ?> -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js?v=5.3"></script>
-    <script src="crypto.js?v=5.3"></script>
-    <script src="sync.js?v=5.3"></script>
-    <script src="iphone-debug.js?v=5.3"></script>
+    <script src="db.js?v=5.4"></script>
+    <script src="crypto.js?v=5.4"></script>
+    <script src="sync.js?v=5.4"></script>
+    <script src="iphone-debug.js?v=5.4"></script>
     <style display="none">
         * {
             margin: 0;
@@ -897,6 +897,181 @@
             document.body.insertBefore(banner, document.body.firstChild);
         }
 
+        // Banner de sincronización con opciones
+        async function showSyncWarningBanner(failedCount, errCode, errMsg) {
+            const existingBanner = document.getElementById('syncWarningBanner');
+            if (existingBanner) existingBanner.remove();
+            
+            const banner = document.createElement('div');
+            banner.id = 'syncWarningBanner';
+            banner.style.cssText = 'position:fixed;top:60px;left:0;right:0;background:#fbbf24;color:#92400e;padding:12px;z-index:9998;box-shadow:0 2px 4px rgba(0,0,0,0.1);';
+            
+            banner.innerHTML = `
+                <div style="max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                    <div style="flex:1;">
+                        <strong>⚠️ ${failedCount} operaciones pendientes</strong>
+                        ${errCode || errMsg ? `<div style="font-size:11px;opacity:0.8;">${errCode} ${errMsg}</div>` : ''}
+                    </div>
+                    <div style="display:flex;gap:6px;">
+                        <button onclick="toggleSyncDetails()" style="padding:6px 10px;background:rgba(0,0,0,0.1);border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;color:#92400e;" title="Ver detalles">
+                            📋 Ver
+                        </button>
+                        <button onclick="manualSync()" style="padding:6px 10px;background:rgba(0,0,0,0.1);border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;color:#92400e;" title="Sincronizar ahora">
+                            🔄 Sync
+                        </button>
+                    </div>
+                </div>
+                <div id="syncDetails" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,0.1);max-height:300px;overflow-y:auto;"></div>
+            `;
+            
+            document.body.insertBefore(banner, document.body.firstChild);
+        }
+
+        // Toggle detalles de sincronización
+        async function toggleSyncDetails() {
+            const details = document.getElementById('syncDetails');
+            if (!details) return;
+            
+            if (details.style.display === 'none') {
+                // Cargar datos pendientes
+                details.innerHTML = '<div style="text-align:center;padding:10px;">Cargando...</div>';
+                details.style.display = 'block';
+                
+                try {
+                    const [pagos, clientes, creditos] = await Promise.all([
+                        getOfflineQueue('offline_pagos'),
+                        getOfflineQueue('offline_clientes'),
+                        getOfflineQueue('offline_creditos')
+                    ]);
+                    
+                    const total = [...pagos, ...clientes, ...creditos];
+                    
+                    if (total.length === 0) {
+                        details.innerHTML = '<div style="text-align:center;padding:10px;font-size:12px;">No hay operaciones pendientes</div>';
+                        return;
+                    }
+                    
+                    let html = '<div style="font-size:12px;">';
+                    
+                    if (pagos.length > 0) {
+                        html += `<div style="margin-bottom:8px;"><strong>💳 Pagos (${pagos.length}):</strong></div>`;
+                        pagos.forEach((p, i) => {
+                            html += `<div style="padding:4px 8px;background:rgba(0,0,0,0.05);border-radius:4px;margin-bottom:4px;font-size:11px;">
+                                ${i+1}. $${p.monto?.toLocaleString()} - ${p.fecha_pago} (ID: ${p.temp_id?.substring(0,20)}...)
+                            </div>`;
+                        });
+                    }
+                    
+                    if (clientes.length > 0) {
+                        html += `<div style="margin:10px 0 8px;"><strong>👥 Clientes (${clientes.length}):</strong></div>`;
+                        clientes.forEach((c, i) => {
+                            html += `<div style="padding:4px 8px;background:rgba(0,0,0,0.05);border-radius:4px;margin-bottom:4px;font-size:11px;">
+                                ${i+1}. ${c.nombre} - ${c.cedula} (ID: ${c.temp_id?.substring(0,20)}...)
+                            </div>`;
+                        });
+                    }
+                    
+                    if (creditos.length > 0) {
+                        html += `<div style="margin:10px 0 8px;"><strong>💰 Créditos (${creditos.length}):</strong></div>`;
+                        creditos.forEach((cr, i) => {
+                            html += `<div style="padding:4px 8px;background:rgba(0,0,0,0.05);border-radius:4px;margin-bottom:4px;font-size:11px;">
+                                ${i+1}. $${cr.monto_prestado?.toLocaleString()} (ID: ${cr.temp_id?.substring(0,20)}...)
+                            </div>`;
+                        });
+                    }
+                    
+                    html += `</div>
+                        <div style="display:flex;gap:8px;margin-top:10px;">
+                            <button onclick="copySyncList()" style="flex:1;padding:8px;background:rgba(0,0,0,0.1);border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;color:#92400e;">
+                                📋 Copiar Lista
+                            </button>
+                            <button onclick="clearFailedSync()" style="flex:1;padding:8px;background:rgba(239,68,68,0.2);border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;color:#7f1d1d;">
+                                🗑️ Eliminar Fallidos
+                            </button>
+                        </div>`;
+                    
+                    details.innerHTML = html;
+                } catch (error) {
+                    console.error('Error cargando detalles:', error);
+                    details.innerHTML = '<div style="text-align:center;padding:10px;color:#ef4444;font-size:12px;">Error al cargar detalles</div>';
+                }
+            } else {
+                details.style.display = 'none';
+            }
+        }
+
+        // Copiar lista de sincronización
+        async function copySyncList() {
+            try {
+                const [pagos, clientes, creditos] = await Promise.all([
+                    getOfflineQueue('offline_pagos'),
+                    getOfflineQueue('offline_clientes'),
+                    getOfflineQueue('offline_creditos')
+                ]);
+                
+                let text = '📋 OPERACIONES PENDIENTES\n\n';
+                
+                if (pagos.length > 0) {
+                    text += `💳 PAGOS (${pagos.length}):\n`;
+                    pagos.forEach((p, i) => {
+                        text += `${i+1}. $${p.monto?.toLocaleString()} - ${p.fecha_pago} - ID: ${p.temp_id}\n`;
+                    });
+                    text += '\n';
+                }
+                
+                if (clientes.length > 0) {
+                    text += `👥 CLIENTES (${clientes.length}):\n`;
+                    clientes.forEach((c, i) => {
+                        text += `${i+1}. ${c.nombre} - ${c.cedula} - ID: ${c.temp_id}\n`;
+                    });
+                    text += '\n';
+                }
+                
+                if (creditos.length > 0) {
+                    text += `💰 CRÉDITOS (${creditos.length}):\n`;
+                    creditos.forEach((cr, i) => {
+                        text += `${i+1}. $${cr.monto_prestado?.toLocaleString()} - ID: ${cr.temp_id}\n`;
+                    });
+                }
+                
+                await navigator.clipboard.writeText(text);
+                showSuccess('✅ Lista copiada al portapapeles');
+            } catch (error) {
+                console.error('Error copiando:', error);
+                showError('Error al copiar la lista');
+            }
+        }
+
+        // Sincronización manual
+        async function manualSync() {
+            showSuccess('🔄 Iniciando sincronización...');
+            await syncOfflineData();
+        }
+
+        // Eliminar operaciones fallidas
+        async function clearFailedSync() {
+            if (!confirm('¿Eliminar TODAS las operaciones pendientes?\n\nEsto no se puede deshacer.')) {
+                return;
+            }
+            
+            try {
+                await Promise.all([
+                    clearSynced('offline_pagos'),
+                    clearSynced('offline_clientes'),
+                    clearSynced('offline_creditos')
+                ]);
+                
+                const banner = document.getElementById('syncWarningBanner');
+                if (banner) banner.remove();
+                
+                showSuccess('✅ Operaciones pendientes eliminadas');
+                await updateConnectionStatus();
+            } catch (error) {
+                console.error('Error eliminando:', error);
+                showError('Error al eliminar operaciones');
+            }
+        }
+
         // Check GPS on app start
         function checkGpsOnStart() {
             // Just init the app directly without GPS lock
@@ -1611,6 +1786,7 @@
                     
                     if (cachedLoans && cachedLoans.length > 0) {
                         console.log(`📂 Loaded ${cachedLoans.length} loans from cache`);
+                        console.log('📂 Primera cuota:', cachedLoans[0]);
                         
                         // Usar el mismo sistema de paginación que online
                         PAGINATION_STATE.pendientes.allData = cachedLoans;

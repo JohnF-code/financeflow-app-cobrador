@@ -171,7 +171,7 @@ async function syncOfflineData() {
             const firstErr = (window.__lastSyncErrors && window.__lastSyncErrors[0]) || {};
             const errCode = firstErr.code || firstErr.name || '';
             const errMsg = firstErr.message || '';
-            showWarning(`⚠️ ${SYNC.totalFailed} operaciones fallaron - se reintentarán${errCode || errMsg ? `\n(${errCode} ${errMsg})` : ''}`);
+            showSyncWarningBanner(SYNC.totalFailed, errCode, errMsg);
         }
 
         SYNC.lastSync = new Date();
