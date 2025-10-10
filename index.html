@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v5.2 (No Encrypt Cache)</title>
-    <!-- Cache Buster: v5.2.<?php echo time(); ?> -->
+    <title>Cobrador App - v5.3 Final</title>
+    <!-- Cache Buster: v5.3.<?php echo time(); ?> -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js?v=5.2"></script>
-    <script src="crypto.js?v=5.2"></script>
-    <script src="sync.js?v=5.2"></script>
-    <script src="iphone-debug.js?v=5.2"></script>
+    <script src="db.js?v=5.3"></script>
+    <script src="crypto.js?v=5.3"></script>
+    <script src="sync.js?v=5.3"></script>
+    <script src="iphone-debug.js?v=5.3"></script>
     <style display="none">
         * {
             margin: 0;
@@ -983,14 +983,7 @@
                 
                 // Mostrar confirmación de éxito
                 banner.classList.add('ready');
-                const totalCached = (clientes?.length || 0) + (prestamos?.length || 0) + (cuotas?.length || 0);
                 updateBanner('✅', '¡Listo para trabajar offline!', `${clientes?.length || 0} clientes, ${prestamos?.length || 0} créditos, ${cuotas?.length || 0} cuotas`);
-                
-                // Alert para iPhone
-                const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-                if (isIOS) {
-                    alert(`✅ CACHE LISTO\n\nDatos descargados:\n• ${clientes?.length || 0} clientes\n• ${prestamos?.length || 0} créditos\n• ${cuotas?.length || 0} cuotas\n\n¡Ahora puedes trabajar OFFLINE!`);
-                }
                 
                 // Sincronizar datos pendientes
                 await syncOfflineData();
@@ -1614,11 +1607,23 @@
                 // 🆕 If offline, try to load from cache
                 if (!APP.isOnline || !navigator.onLine) {
                     console.log('📵 Offline mode - loading from cache...');
-                    const cachedCuotas = await loadFromCache('cuotas_cache');
+                    const cachedLoans = await loadFromCache('cuotas_cache');
                     
-                    if (cachedCuotas && cachedCuotas.length > 0) {
-                        console.log(`📂 Loaded ${cachedCuotas.length} cuotas from cache`);
-                        renderPendingQuotasFromCache(cachedCuotas);
+                    if (cachedLoans && cachedLoans.length > 0) {
+                        console.log(`📂 Loaded ${cachedLoans.length} loans from cache`);
+                        
+                        // Usar el mismo sistema de paginación que online
+                        PAGINATION_STATE.pendientes.allData = cachedLoans;
+                        PAGINATION_STATE.pendientes.filteredData = cachedLoans;
+                        PAGINATION_STATE.pendientes.currentPage = 1;
+                        
+                        // Setup search listener
+                        setupSearchListener('pendientes', ['clients.nombre', 'clients.cedula'], renderPendientes);
+                        
+                        // Render con paginación (mismo que online)
+                        setTimeout(() => {
+                            renderPendientes(cachedLoans);
+                        }, 0);
                         return;
                     } else {
                         container.innerHTML = '<div class="empty-state"><h3>⚠️ Modo Offline</h3><p>No hay datos en cache. Conecta a internet para cargar las cuotas</p></div>';
@@ -2348,28 +2353,10 @@
                     const cuotaMinima = settings.cuota_minima || 5000;
                     console.log('⚙️ Settings OK:', { minCuotas, maxCuotas, cuotaMinima });
 
-                    console.log('🔍 Intentando cargar cache...');
-                    console.log('🔍 typeof loadFromCache:', typeof loadFromCache);
-                    console.log('🔍 DB.isSupported:', DB?.isSupported);
-                    console.log('🔍 DB.instance:', DB?.instance);
+                    const clientes = await loadFromCache('clientes_cache');
                     
-                    let clientes;
-                    try {
-                        clientes = await loadFromCache('clientes_cache');
-                        console.log('👥 Clientes cache resultado:', clientes);
-                        console.log('👥 Clientes cache tipo:', typeof clientes);
-                        console.log('👥 Clientes cache length:', clientes?.length || 0);
-                    } catch (e) {
-                        console.error('❌ Error al cargar clientes:', e);
-                        alert('ERROR técnico:\n' + e.message);
-                        return;
-                    }
-                    
-                    // Si no hay clientes en cache, mostrar error
                     if (!clientes || clientes.length === 0) {
-                        console.error('❌ No hay clientes en cache');
-                        console.error('❌ clientes es:', clientes);
-                        alert('⚠️ NO HAY DATOS OFFLINE\n\nPara usar esta función:\n\n1. Conéctate a INTERNET\n2. Abre la app y espera 10 segundos\n3. Navega: Clientes → Créditos → Pagos\n4. Verás banner "Listo para offline"\n5. Ahora SÍ podrás trabajar sin conexión\n\n❌ Cache guardado: 49 clientes\n❌ Pero al leer: ' + (clientes?.length || 0) + ' clientes');
+                        showError('No hay datos en cache.\n\n1. Conéctate a internet\n2. Espera que se cargue el cache\n3. Luego podrás trabajar offline');
                         return;
                     }
                     
@@ -2531,14 +2518,9 @@
                             selectorView.appendChild(searchBox);
                             
                             // Lista de clientes (mostrar TODOS si no hay sin crédito)
-                            console.log('🍎 Clientes sin crédito:', clientsWithoutCredit?.length || 0);
-                            console.log('🍎 Total clientes:', clientes?.length || 0);
-                            
                             const clientsToShow = (clientsWithoutCredit && clientsWithoutCredit.length > 0) 
                                 ? clientsWithoutCredit 
                                 : (clientes || []).slice(0, 10); // Mostrar primeros 10 si no hay filtro
-                            
-                            console.log('🍎 Clientes a mostrar:', clientsToShow.length);
                             
                             if (clientsToShow && clientsToShow.length > 0) {
                                 const clientsSection = document.createElement('div');
@@ -2568,9 +2550,7 @@
                                     clientsSection.appendChild(clientDiv);
                                 });
                                 selectorView.appendChild(clientsSection);
-                                console.log('🍎 Lista de clientes agregada al modal');
                             } else {
-                                console.warn('🍎 No hay clientes para mostrar');
                                 const noClientsMsg = document.createElement('div');
                                 noClientsMsg.textContent = 'No hay clientes disponibles. Usa el buscador arriba.';
                                 noClientsMsg.style.cssText = 'padding:20px;text-align:center;color:#999;';
@@ -2715,16 +2695,8 @@
                             overlay.appendChild(container);
                             document.body.appendChild(overlay);
                             
-                            console.log('✅✅✅ Modal iPhone insertado con DOM puro (sin template literals)');
-                            
-                            // Alert de debug para iPhone
-                            if (isIOS) {
-                                alert('iPhone v4.8\nModal creado\nClientes: ' + (clientes?.length || 0) + '\nSin crédito: ' + (clientsWithoutCredit?.length || 0) + '\nA mostrar: ' + clientsToShow.length);
-                            }
-                            
-                            // Configurar event listeners para iPhone inmediatamente
+                            // Configurar event listeners para iPhone
                             setTimeout(() => {
-                                console.log('🍎 Configurando listeners para iPhone...');
                                 const searchInput = document.getElementById('clientSearchInput');
                                 const searchResults = document.getElementById('searchResults');
                                 
@@ -2733,7 +2705,6 @@
                                     const runFilter = () => {
                                         try {
                                             const q = normalize(searchInput.value);
-                                            console.log('🍎 Filtrando:', q);
                                             const filtered = (clientes || []).filter(c => 
                                                 normalize(c.nombre).includes(q) || 
                                                 normalize(c.cedula).includes(q)
@@ -2762,14 +2733,13 @@
                                                 searchResults.innerHTML = '<div style="padding:10px;color:#999;text-align:center;">No se encontraron resultados</div>';
                                             }
                                         } catch (e) {
-                                            console.error('🍎 Error en filtro:', e);
+                                            console.error('Error en filtro:', e);
                                         }
                                     };
                                     
                                     ['input', 'keyup', 'change', 'search'].forEach(evt => 
                                         searchInput.addEventListener(evt, runFilter)
                                     );
-                                    console.log('🍎 Buscador configurado');
                                 }
                                 
                                 // Configurar cálculo automático
@@ -2816,7 +2786,7 @@
                                                 }
                                             }
                                         } catch (e) {
-                                            console.error('🍎 Error calculando:', e);
+                                            console.error('Error calculando crédito:', e);
                                         }
                                     };
                                     
@@ -2824,7 +2794,6 @@
                                         amountInput.addEventListener(evt, calculateCredit);
                                         quotaInput.addEventListener(evt, calculateCredit);
                                     });
-                                    console.log('🍎 Cálculo automático configurado');
                                 }
                             }, 100);
                             

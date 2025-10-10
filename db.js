@@ -217,17 +217,13 @@ async function saveToCache(storeName, data) {
             store.clear();
 
             // Guardar nuevos datos
+            // NO cifrar datos de cache (solo offline operations)
+            const isCacheStore = storeName.includes('_cache');
+            const shouldEncrypt = CRYPTO.isEnabled && !isCacheStore;
+            
             for (const item of items) {
-                // 🍎 NO cifrar datos de cache (solo offline operations)
-                // Cifrar si es necesario
-                const isCacheStore = storeName.includes('_cache');
-                const shouldEncrypt = CRYPTO.isEnabled && !isCacheStore;
                 const encrypted = shouldEncrypt ? await encryptObject(item) : item;
                 store.put(encrypted);
-            }
-            
-            if (storeName.includes('_cache')) {
-                console.log(`🔓 Cache guardado SIN cifrado: ${storeName}`);
             }
         });
     } catch (error) {
@@ -242,8 +238,6 @@ async function saveToCache(storeName, data) {
  * @returns {Array} Datos del cache
  */
 async function loadFromCache(storeName) {
-    console.log(`🔍 loadFromCache(${storeName}) iniciando...`);
-    
     if (!DB.isSupported || !DB.instance) {
         console.warn('⚠️ IndexedDB no disponible');
         return [];
@@ -251,50 +245,38 @@ async function loadFromCache(storeName) {
 
     try {
         const db = DB.instance;
-        console.log(`🔍 DB instance OK, creando transacción para ${storeName}...`);
-        
         const tx = db.transaction([storeName], 'readonly');
         const store = tx.objectStore(storeName);
         const request = store.getAll();
-        console.log(`🔍 Request getAll() creado`);
 
         return new Promise((resolve, reject) => {
             request.onsuccess = async () => {
                 const data = request.result || [];
-                console.log(`🔍 getAll() success, items raw: ${data.length}`);
-                console.log(`🔍 CRYPTO.isEnabled: ${CRYPTO.isEnabled}`);
                 
-                // 🍎 NO descifrar datos de cache (solo offline operations)
+                // NO descifrar datos de cache (solo offline operations)
                 const isCacheStore = storeName.includes('_cache');
                 const shouldDecrypt = CRYPTO.isEnabled && !isCacheStore;
                 
                 // Descifrar si es necesario
                 if (shouldDecrypt && data.length > 0) {
-                    console.log(`🔍 Intentando descifrar ${data.length} items...`);
                     try {
                         const decrypted = await Promise.all(
                             data.map(item => decryptObject(item))
                         );
-                        console.log(`📂 Cache leído y descifrado: ${storeName} (${decrypted.length} items)`);
+                        console.log(`📂 ${storeName}: ${decrypted.length} items (cifrados)`);
                         resolve(decrypted);
                     } catch (decryptError) {
                         console.error(`❌ Error descifrando ${storeName}:`, decryptError);
-                        // Intentar devolver sin descifrar
-                        console.log(`⚠️ Devolviendo datos sin descifrar`);
                         resolve(data);
                     }
                 } else {
-                    if (isCacheStore) {
-                        console.log(`🔓 Cache leído SIN cifrado: ${storeName} (${data.length} items)`);
-                    } else {
-                        console.log(`📂 Cache leído sin cifrado: ${storeName} (${data.length} items)`);
-                    }
+                    console.log(`📂 ${storeName}: ${data.length} items`);
                     resolve(data);
                 }
             };
             
             request.onerror = () => {
-                console.error(`❌ Error leyendo cache de ${storeName}:`, request.error);
+                console.error(`❌ Error leyendo ${storeName}:`, request.error);
                 reject(request.error);
             };
         });
