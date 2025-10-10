@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v6.2 Final</title>
-    <!-- Cache Buster: v6.2.<?php echo time(); ?> -->
+    <title>Cobrador App - v6.3 Clean</title>
+    <!-- Cache Buster: v6.3.<?php echo time(); ?> -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js?v=6.2"></script>
-    <script src="crypto.js?v=6.2"></script>
-    <script src="sync.js?v=6.2"></script>
-    <script src="iphone-debug.js?v=6.2"></script>
+    <script src="db.js?v=6.3"></script>
+    <script src="crypto.js?v=6.3"></script>
+    <script src="sync.js?v=6.3"></script>
+    <script src="iphone-debug.js?v=6.3"></script>
     <style display="none">
         * {
             margin: 0;
@@ -1086,24 +1086,14 @@
                 banner.classList.add('show');
                 updateBanner('📦', 'Preparando datos offline...', 'Descargando información para trabajar sin conexión');
                 
-                // Panel de debug
-                const debugPanel = document.createElement('div');
-                debugPanel.id = 'debugPanel';
-                debugPanel.style.cssText = 'position:fixed;bottom:20px;right:20px;background:rgba(0,0,0,0.9);color:#0f0;padding:15px;border-radius:8px;font-family:monospace;font-size:11px;max-width:400px;max-height:400px;overflow-y:auto;z-index:99999;';
-                document.body.appendChild(debugPanel);
-                
+                // Solo logs en consola (sin panel visual)
                 const addDebugLog = (msg) => {
-                    const time = new Date().toLocaleTimeString();
-                    debugPanel.innerHTML += `<div>[${time}] ${msg}</div>`;
-                    debugPanel.scrollTop = debugPanel.scrollHeight;
-                    console.log(`[DEBUG] ${msg}`);
+                    console.log(`[CACHE] ${msg}`);
                 };
-                
-                addDebugLog('🚀 Iniciando descarga de cache...');
                 
                 // 1. Cache clientes
                 updateBanner('👥', 'Descargando clientes...', 'Paso 1 de 5 ⏳');
-                await new Promise(resolve => setTimeout(resolve, 3000));
+                await new Promise(resolve => setTimeout(resolve, 800));
                 const { data: clientes } = await APP.supabase
                     .from('clients')
                     .select('*')
@@ -1126,7 +1116,7 @@
                 
                 // 2. Cache préstamos activos (sin relaciones anidadas para evitar error 400)
                 updateBanner('💰', 'Descargando préstamos activos...', 'Paso 2 de 5 ⏳');
-                await new Promise(resolve => setTimeout(resolve, 3000));
+                await new Promise(resolve => setTimeout(resolve, 800));
                 
                 // Traer préstamos del COBRADOR (igual que loadPendingQuotas) con relaciones anidadas
                 const { data: prestamos, error: prestamosError } = await APP.supabase
@@ -1184,7 +1174,7 @@
                 
                 // 3. Cache préstamos AGRUPADOS con detalles (igual que "Cuotas Hoy" online)
                 updateBanner('📅', 'Calculando préstamos con detalles...', 'Paso 3 de 5 ⏳');
-                await new Promise(resolve => setTimeout(resolve, 3000));
+                await new Promise(resolve => setTimeout(resolve, 800));
                 
                 if (prestamos?.length) {
                     addDebugLog(`🔧 Procesando ${prestamos.length} préstamos con sus cuotas...`);
@@ -1255,14 +1245,14 @@
                 
                 // 4. Cache settings
                 updateBanner('⚙️', 'Descargando configuración...', 'Paso 4 de 5 ⏳');
-                await new Promise(resolve => setTimeout(resolve, 3000));
+                await new Promise(resolve => setTimeout(resolve, 800));
                 await cacheSettings();
                 
                 addDebugLog(`⚙️ Settings cacheados`);
                 
                 // 5. Cache pagos recientes (sin relaciones anidadas)
                 updateBanner('💳', 'Descargando pagos recientes...', 'Paso 5 de 5 ⏳');
-                await new Promise(resolve => setTimeout(resolve, 3000));
+                await new Promise(resolve => setTimeout(resolve, 800));
                 const thirtyDaysAgo = new Date();
                 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
                 
@@ -1308,16 +1298,11 @@
                     addDebugLog(`⚠️ No hay pagos para cachear`);
                 }
                 
-                addDebugLog(`🎉 PROCESO COMPLETADO - Panel visible 30seg`);
-                
+                addDebugLog(`🎉 PROCESO COMPLETADO`);
+
                 // Mostrar confirmación de éxito
                 banner.classList.add('ready');
-                updateBanner('✅', '¡Listo para trabajar offline!', `${clientes?.length || 0} clientes, ${prestamos?.length || 0} créditos, ${cuotas?.length || 0} cuotas`);
-                
-                // Mantener panel debug visible 30 segundos
-                setTimeout(() => {
-                    if (debugPanel) debugPanel.remove();
-                }, 30000);
+                updateBanner('✅', '¡Listo para trabajar offline!', `${clientes?.length || 0} clientes, ${loansWithDetails?.length || 0} préstamos listos`);
                 
                 // Sincronizar datos pendientes
                 await syncOfflineData();
