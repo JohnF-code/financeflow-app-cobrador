@@ -266,9 +266,7 @@ async function syncCreditos(creditos) {
                 cuota_diaria: Number(credito.cuota_diaria),
                 total_dias: Number(credito.total_dias),
                 fecha_inicio: credito.fecha_inicio,
-                estado: 'activo',
-                lat: credito.lat || null,
-                lng: credito.lng || null
+                estado: 'activo'
             };
 
             // Insertar en Supabase

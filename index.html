@@ -2410,16 +2410,30 @@
                                             style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;-webkit-appearance:none;-moz-appearance:textfield;">
                                         <small style="color:#666;font-size:12px;">Mínimo recomendado: $${cuotaMinima.toLocaleString()}</small>
                                     </div>
+                                    <div>
+                                        <label style="display:block;margin-bottom:5px;font-weight:600;color:#374151;">Días calculados</label>
+                                        <div id="creditCalculatedDays" style="padding:10px;background:#e0e7ff;border-radius:8px;font-weight:bold;text-align:center;">
+                                            -
+                                        </div>
+                                        <small style="color:#666;font-size:12px;">Entre ${minCuotas} y ${maxCuotas} días</small>
+                                    </div>
+                                    <div>
+                                        <label style="display:block;margin-bottom:5px;font-weight:600;color:#374151;">Total a pagar</label>
+                                        <div id="creditTotal" style="padding:10px;background:#dcfce7;border-radius:8px;font-weight:bold;text-align:center;">
+                                            -
+                                        </div>
+                                        <small style="color:#666;font-size:12px;">Interés base: 20%</small>
+                                    </div>
                                     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
-                                        <button type="button" onclick="hideCreateCreditForm()" class="btn-secondary">Cancelar</button>
-                                        <button id="createCreditBtn" type="button" onclick="createCredit({min_cuotas:${minCuotas},max_cuotas:${maxCuotas},cuota_minima:${cuotaMinima}})" class="btn-primary">Crear Crédito</button>
+                                        <button type="button" onclick="hideCreateCreditForm()" class="btn-secondary" style="padding:12px 24px;background:#6c757d;color:white;border:none;border-radius:8px;cursor:pointer;">Cancelar</button>
+                                        <button id="createCreditBtn" type="button" onclick="createCredit({min_cuotas:${minCuotas},max_cuotas:${maxCuotas},cuota_minima:${cuotaMinima},interes_base:20})" class="btn-primary" style="padding:12px 24px;background:#10b981;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Crear Crédito</button>
                                     </div>
                                 </form>
                             </div>
                         </div>
                     `);
 
-                    // Buscar en cache por nombre/cedula
+                    // Buscar en cache por nombre/cedula + calcular cuotas automáticamente
                     console.log('🔍 Configurando buscador offline...');
                     setTimeout(() => {
                         const input = document.getElementById('clientSearchInput');
@@ -2450,6 +2464,41 @@
                         ['input','keyup','change','search'].forEach(evt => input.addEventListener(evt, runFilter));
                         runFilter();
                         console.log('✅ Buscador configurado');
+
+                        // Calcular cuotas automáticamente
+                        const amountInput = document.getElementById('creditAmount');
+                        const quotaInput = document.getElementById('creditDailyQuota');
+                        function calculateCredit() {
+                            const amount = Number((amountInput?.value||'').replace(/[^\\d]/g, '')) || 0;
+                            const dailyQuota = Number((quotaInput?.value||'').replace(/[^\\d]/g, '')) || 0;
+                            if (amount > 0 && dailyQuota > 0) {
+                                const baseInterestRate = 0.2;
+                                const totalWithBaseInterest = amount * (1 + baseInterestRate);
+                                const idealInstallment = totalWithBaseInterest / 30;
+                                let adjustedInterestRate = baseInterestRate;
+                                let totalToPay = totalWithBaseInterest;
+                                if (dailyQuota < idealInstallment) {
+                                    adjustedInterestRate = baseInterestRate * (idealInstallment / dailyQuota);
+                                    totalToPay = amount * (1 + adjustedInterestRate);
+                                }
+                                const days = Math.ceil(totalToPay / dailyQuota);
+                                const realTotal = days * dailyQuota;
+                                const daysEl = document.getElementById('creditCalculatedDays');
+                                const totalEl = document.getElementById('creditTotal');
+                                if (daysEl) daysEl.textContent = days + ' días';
+                                if (totalEl) totalEl.textContent = '$' + realTotal.toLocaleString();
+                                if (daysEl && (days < minCuotas || days > maxCuotas)) {
+                                    daysEl.style.background = '#fee2e2';
+                                    daysEl.style.color = '#991b1b';
+                                } else if (daysEl) {
+                                    daysEl.style.background = '#e0e7ff';
+                                    daysEl.style.color = '#1e3a8a';
+                                }
+                            }
+                        }
+                        if (amountInput) amountInput.addEventListener('input', calculateCredit);
+                        if (quotaInput) quotaInput.addEventListener('input', calculateCredit);
+                        console.log('✅ Cálculo automático configurado');
                     }, 100);
 
                     console.log('✅ Modal offline insertado, retornando');
@@ -2821,7 +2870,7 @@
                     console.warn('⚠️ No se pudo capturar GPS en crédito:', gpsError);
                 }
 
-                // Create loan (offline-first)
+                // Create loan (offline-first) - SIN lat/lng (tabla prestamos no tiene esos campos)
                 const loanData = {
                     panel_id: APP.collectorContext.panelId,
                     cliente_id: clientId,
@@ -2833,12 +2882,6 @@
                     fecha_inicio: getLocalToday(),
                     estado: 'activo'
                 };
-
-                // Add GPS data if available
-                if (location) {
-                    loanData.lat = location.latitude;
-                    loanData.lng = location.longitude;
-                }
 
                 if (!APP.isOnline) {
                     // Guardar offline
