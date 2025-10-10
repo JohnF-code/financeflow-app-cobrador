@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v5.6</title>
-    <!-- Cache Buster: v5.6.<?php echo time(); ?> -->
+    <title>Cobrador App - v5.7</title>
+    <!-- Cache Buster: v5.7.<?php echo time(); ?> -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js?v=5.6"></script>
-    <script src="crypto.js?v=5.6"></script>
-    <script src="sync.js?v=5.6"></script>
-    <script src="iphone-debug.js?v=5.6"></script>
+    <script src="db.js?v=5.7"></script>
+    <script src="crypto.js?v=5.7"></script>
+    <script src="sync.js?v=5.7"></script>
+    <script src="iphone-debug.js?v=5.7"></script>
     <style display="none">
         * {
             margin: 0;
@@ -1088,6 +1088,7 @@
                 
                 // 1. Cache clientes
                 updateBanner('👥', 'Descargando clientes...', 'Paso 1 de 5');
+                await new Promise(resolve => setTimeout(resolve, 1200)); // Pausa para visualizar
                 const { data: clientes } = await APP.supabase
                     .from('clients')
                     .select('*')
@@ -1099,33 +1100,40 @@
                     console.log(`✅ ${clientes.length} clientes cacheados`);
                 }
                 
-                // 2. Cache préstamos activos completos
+                // 2. Cache préstamos activos (sin relaciones anidadas para evitar error 400)
                 updateBanner('💰', 'Descargando préstamos activos...', 'Paso 2 de 5');
+                await new Promise(resolve => setTimeout(resolve, 1200));
                 const { data: prestamos } = await APP.supabase
                     .from('prestamos')
-                    .select(`
-                        id, cliente_id, cuota_diaria, estado,
-                        saldo_total_pendiente, monto_total,
-                        fecha_inicio, fecha_fin,
-                        clients:cliente_id(nombre, cedula, telefono)
-                    `)
+                    .select('id, cliente_id, cuota_diaria, estado, saldo_total_pendiente, monto_total, fecha_inicio, fecha_fin, monto_prestado, total_dias')
                     .eq('panel_id', APP.collectorContext.panelId)
                     .in('estado', ['activo', 'vencido'])
                     .order('fecha_inicio', { ascending: false });
                 
-                if (prestamos?.length) {
+                // Enriquecer con datos de clientes desde el cache local
+                if (prestamos?.length && clientes?.length) {
+                    const clientesMap = new Map(clientes.map(c => [c.id, c]));
+                    prestamos.forEach(p => {
+                        const cliente = clientesMap.get(p.cliente_id);
+                        if (cliente) {
+                            p.clients = {
+                                id: cliente.id,
+                                nombre: cliente.nombre,
+                                cedula: cliente.cedula,
+                                telefono: cliente.telefono
+                            };
+                        }
+                    });
                     await saveToCache('prestamos_detalle_cache', prestamos);
                     console.log(`✅ ${prestamos.length} préstamos cacheados`);
                 }
                 
                 // 3. Cache cuotas pendientes
                 updateBanner('📅', 'Descargando cuotas pendientes...', 'Paso 3 de 5');
+                await new Promise(resolve => setTimeout(resolve, 1200));
                 const { data: cuotas } = await APP.supabase
                     .from('cuotas')
-                    .select(`
-                        id, prestamo_id, fecha_vencimiento, 
-                        saldo_pendiente, estado
-                    `)
+                    .select('id, prestamo_id, fecha_vencimiento, saldo_pendiente, estado')
                     .eq('cobrador_id', APP.collectorContext.collectorId)
                     .neq('estado', 'pagada')
                     .order('fecha_vencimiento', { ascending: true });
@@ -1137,25 +1145,35 @@
                 
                 // 4. Cache settings
                 updateBanner('⚙️', 'Descargando configuración...', 'Paso 4 de 5');
+                await new Promise(resolve => setTimeout(resolve, 1200));
                 await cacheSettings();
                 
-                // 5. Cache pagos recientes (últimos 30 días)
+                // 5. Cache pagos recientes (sin relaciones anidadas)
                 updateBanner('💳', 'Descargando pagos recientes...', 'Paso 5 de 5');
+                await new Promise(resolve => setTimeout(resolve, 1200));
                 const thirtyDaysAgo = new Date();
                 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
                 
                 const { data: pagos } = await APP.supabase
                     .from('pagos')
-                    .select(`
-                        id, monto, fecha_pago, hora_pago, estado, created_at,
-                        clients:cliente_id(nombre, cedula),
-                        prestamos:prestamo_id(id)
-                    `)
+                    .select('id, monto, fecha_pago, hora_pago, estado, created_at, cliente_id, prestamo_id')
                     .eq('cobrador_id', APP.collectorContext.collectorId)
                     .gte('fecha_pago', thirtyDaysAgo.toISOString())
                     .order('fecha_pago', { ascending: false });
                 
-                if (pagos?.length) {
+                // Enriquecer con datos de clientes desde el cache local
+                if (pagos?.length && clientes?.length) {
+                    const clientesMap = new Map(clientes.map(c => [c.id, c]));
+                    pagos.forEach(p => {
+                        const cliente = clientesMap.get(p.cliente_id);
+                        if (cliente) {
+                            p.clients = {
+                                nombre: cliente.nombre,
+                                cedula: cliente.cedula
+                            };
+                        }
+                        p.prestamos = { id: p.prestamo_id };
+                    });
                     await saveToCache('pagos_cache', pagos);
                     console.log(`✅ ${pagos.length} pagos cacheados`);
                 }
