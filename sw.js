@@ -1,5 +1,5 @@
 // Service Worker para App Cobrador - Soporte offline completo
-const CACHE_NAME = 'cobrador-cache-v7.0';
+const CACHE_NAME = 'cobrador-cache-v7.1';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',

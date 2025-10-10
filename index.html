@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v7.0 Persistent</title>
-    <!-- Cache Buster: v7.0.<?php echo time(); ?> -->
+    <title>Cobrador App - v7.1 Clean List</title>
+    <!-- Cache Buster: v7.1.<?php echo time(); ?> -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js?v=7.0"></script>
-    <script src="crypto.js?v=7.0"></script>
-    <script src="sync.js?v=7.0"></script>
-    <script src="iphone-debug.js?v=7.0"></script>
+    <script src="db.js?v=7.1"></script>
+    <script src="crypto.js?v=7.1"></script>
+    <script src="sync.js?v=7.1"></script>
+    <script src="iphone-debug.js?v=7.1"></script>
     <style display="none">
         * {
             margin: 0;
@@ -1261,9 +1261,14 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                         };
                     }));
                     
-                    addDebugLog(`✅ ${loansWithDetails.length} préstamos procesados con detalles`);
+                    // 🆕 FILTRAR solo préstamos con cuotas pendientes (saldo > 0)
+                    const loansWithPending = loansWithDetails.filter(loan => {
+                        return loan.pendingAmount > 0 && loan.paidCuotas < loan.totalCuotas;
+                    });
+                    
+                    addDebugLog(`✅ ${loansWithDetails.length} préstamos procesados, ${loansWithPending.length} con cuotas pendientes`);
                     addDebugLog(`💾 Guardando en cuotas_cache...`);
-                    await saveToCache('cuotas_cache', loansWithDetails);
+                    await saveToCache('cuotas_cache', loansWithPending);
                     addDebugLog(`✅ Cache "Cuotas Hoy" listo`);
                     
                     // Verificar
@@ -2086,17 +2091,23 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                     };
                 }));
 
+                // 🆕 FILTRAR solo préstamos con cuotas pendientes (saldo > 0)
+                const loansWithPending = loansWithDetails.filter(loan => {
+                    return loan.pendingAmount > 0 && loan.paidCuotas < loan.totalCuotas;
+                });
+                
+                console.log(`✅ Préstamos con detalles: ${loansWithDetails.length} total, ${loansWithPending.length} con cuotas pendientes`);
+                
                 // Store data and render with pagination
-                console.log('✅ Préstamos con detalles:', loansWithDetails.length);
-                PAGINATION_STATE.pendientes.allData = loansWithDetails;
-                PAGINATION_STATE.pendientes.filteredData = loansWithDetails;
+                PAGINATION_STATE.pendientes.allData = loansWithPending;
+                PAGINATION_STATE.pendientes.filteredData = loansWithPending;
                 PAGINATION_STATE.pendientes.currentPage = 1;
                 
                 // Setup search listener
                 setupSearchListener('pendientes', ['clients.nombre', 'clients.cedula'], renderPendientes);
                 
                 // Render with pagination
-                renderPendientes(loansWithDetails);
+                renderPendientes(loansWithPending);
                 
                 // 🆕 Save to cache for offline use
                 await saveToCache('cuotas_cache', loansWithDetails);
