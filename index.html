@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v5.5</title>
-    <!-- Cache Buster: v5.5.<?php echo time(); ?> -->
+    <title>Cobrador App - v5.6</title>
+    <!-- Cache Buster: v5.6.<?php echo time(); ?> -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js?v=5.5"></script>
-    <script src="crypto.js?v=5.5"></script>
-    <script src="sync.js?v=5.5"></script>
-    <script src="iphone-debug.js?v=5.5"></script>
+    <script src="db.js?v=5.6"></script>
+    <script src="crypto.js?v=5.6"></script>
+    <script src="sync.js?v=5.6"></script>
+    <script src="iphone-debug.js?v=5.6"></script>
     <style display="none">
         * {
             margin: 0;
@@ -1110,7 +1110,7 @@
                         clients:cliente_id(nombre, cedula, telefono)
                     `)
                     .eq('panel_id', APP.collectorContext.panelId)
-                    .in('estado', ['activo', 'en_cobranza'])
+                    .in('estado', ['activo', 'vencido'])
                     .order('fecha_inicio', { ascending: false });
                 
                 if (prestamos?.length) {
@@ -1146,7 +1146,11 @@
                 
                 const { data: pagos } = await APP.supabase
                     .from('pagos')
-                    .select('*')
+                    .select(`
+                        id, monto, fecha_pago, hora_pago, estado, created_at,
+                        clients:cliente_id(nombre, cedula),
+                        prestamos:prestamo_id(id)
+                    `)
                     .eq('cobrador_id', APP.collectorContext.collectorId)
                     .gte('fecha_pago', thirtyDaysAgo.toISOString())
                     .order('fecha_pago', { ascending: false });
