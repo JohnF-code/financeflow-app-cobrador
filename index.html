@@ -2316,8 +2316,9 @@
             try {
                 // Offline fallback: construir modal usando cache local
                 if (!APP.isOnline) {
-                    console.log('🔴 Offline: usando cache para crear crédito');
+                    console.log('🔴🍎 Offline (iPhone/Android): construyendo modal crédito desde cache');
                     const settingsRows = await loadFromCache('panel_settings_cache');
+                    console.log('📦 Settings rows cargadas:', settingsRows?.length || 0);
                     const settings = {};
                     (settingsRows || []).forEach(s => {
                         try {
@@ -2328,13 +2329,19 @@
                     const minCuotas = settings.min_cuotas || 30;
                     const maxCuotas = settings.max_cuotas || 90;
                     const cuotaMinima = settings.cuota_minima || 5000;
+                    console.log('⚙️ Settings OK:', { minCuotas, maxCuotas, cuotaMinima });
 
                     const clientes = await loadFromCache('clientes_cache');
+                    console.log('👥 Clientes cache:', clientes?.length || 0);
                     const creditos = await loadFromCache('creditos_cache');
+                    console.log('💰 Créditos cache:', creditos?.length || 0);
                     const activeByClient = new Set((creditos || []).filter(c => c.estado === 'activo').map(c => (c.cliente_id || (c.clients && c.clients.id))).filter(Boolean));
                     const clientsWithoutCredit = (clientes || []).filter(c => !activeByClient.has(c.id)).slice(0, 5);
+                    console.log('✨ Clientes sin crédito:', clientsWithoutCredit.length);
 
-                    const withoutCreditHTML = clientsWithoutCredit.map(c => `
+                    let withoutCreditHTML = '';
+                    try {
+                        withoutCreditHTML = clientsWithoutCredit.map(c => `
                         <div onclick="selectClientForCredit('${c.id}', '${(c.nombre||'').replace(/'/g, "\\'")}', '${c.cedula||''}')" 
                             style="padding:12px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer;transition:all 0.2s;margin-bottom:8px;"
                             onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">
@@ -2345,8 +2352,13 @@
                             </button>
                         </div>
                     `).join('');
+                    } catch (e) {
+                        console.error('❌ Error generando HTML clientes sin crédito:', e);
+                    }
+                    console.log('🖼️ HTML clientes generado, longitud:', withoutCreditHTML.length);
 
                     // Insertar modal básico (mismo layout que online)
+                    console.log('📝 Insertando modal en DOM...');
                     document.body.insertAdjacentHTML('beforeend', `
                         <div id="creditModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;">
                             <div style="background:white;border-radius:15px;padding:20px;max-width:450px;width:100%;max-height:90vh;overflow-y:auto;position:relative;">
@@ -2402,25 +2414,39 @@
                     `);
 
                     // Buscar en cache por nombre/cedula
-                    const input = document.getElementById('clientSearchInput');
-                    const results = document.getElementById('searchResults');
-                    const normalize = (v) => (v == null ? '' : String(v)).toLowerCase();
-                    const runFilter = () => {
-                        const q = normalize(input.value);
-                        const filtered = (clientes || []).filter(c => normalize(c.nombre).includes(q) || normalize(c.cedula).includes(q)).slice(0, 20);
-                        results.innerHTML = filtered.map(c => `
-                            <div onclick=\"selectClientForCredit('${c.id}','${(normalize(c.nombre)||'').replace(/'/g, "\\'")}','${normalize(c.cedula)||''}')\" 
-                                style=\"padding:10px;border-bottom:1px solid #eee;cursor:pointer;\">
-                                <div style=\"font-weight:600;\">${normalize(c.nombre)}</div>
-                                <div style=\"font-size:12px;color:#666;\">🆔 ${normalize(c.cedula)}</div>
-                            </div>
-                        `).join('');
-                    };
-                    if (input && results) {
+                    console.log('🔍 Configurando buscador offline...');
+                    setTimeout(() => {
+                        const input = document.getElementById('clientSearchInput');
+                        const results = document.getElementById('searchResults');
+                        if (!input || !results) {
+                            console.error('❌ No se encontraron elementos de búsqueda');
+                            return;
+                        }
+                        console.log('✅ Elementos de búsqueda encontrados');
+                        const normalize = (v) => (v == null ? '' : String(v)).toLowerCase();
+                        const runFilter = () => {
+                            try {
+                                const q = normalize(input.value);
+                                console.log('🔎 Filtrando por:', q);
+                                const filtered = (clientes || []).filter(c => normalize(c.nombre).includes(q) || normalize(c.cedula).includes(q)).slice(0, 20);
+                                console.log('📋 Resultados:', filtered.length);
+                                results.innerHTML = filtered.map(c => `
+                                    <div onclick="selectClientForCredit('${c.id}','${(c.nombre||'').replace(/'/g, "\\'")}','${c.cedula||''}')" 
+                                        style="padding:10px;border-bottom:1px solid #eee;cursor:pointer;">
+                                        <div style="font-weight:600;">${c.nombre||''}</div>
+                                        <div style="font-size:12px;color:#666;">🆔 ${c.cedula||''}</div>
+                                    </div>
+                                `).join('');
+                            } catch (e) {
+                                console.error('❌ Error en runFilter:', e);
+                            }
+                        };
                         ['input','keyup','change','search'].forEach(evt => input.addEventListener(evt, runFilter));
                         runFilter();
-                    }
+                        console.log('✅ Buscador configurado');
+                    }, 100);
 
+                    console.log('✅ Modal offline insertado, retornando');
                     return; // No continuar con flujo online
                 }
                 // Get settings
