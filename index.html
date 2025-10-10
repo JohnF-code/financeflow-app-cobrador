@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v5.4</title>
-    <!-- Cache Buster: v5.4.<?php echo time(); ?> -->
+    <title>Cobrador App - v5.5</title>
+    <!-- Cache Buster: v5.5.<?php echo time(); ?> -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js?v=5.4"></script>
-    <script src="crypto.js?v=5.4"></script>
-    <script src="sync.js?v=5.4"></script>
-    <script src="iphone-debug.js?v=5.4"></script>
+    <script src="db.js?v=5.5"></script>
+    <script src="crypto.js?v=5.5"></script>
+    <script src="sync.js?v=5.5"></script>
+    <script src="iphone-debug.js?v=5.5"></script>
     <style display="none">
         * {
             margin: 0;
@@ -1913,8 +1913,36 @@
                 console.log(`✅ ${loans.length} préstamos cacheados completos`);
             } catch (error) {
                 console.error('Error loading pending loans:', error);
+                console.error('Error details:', {
+                    message: error.message,
+                    name: error.name,
+                    stack: error.stack
+                });
                 console.error('Context:', APP.collectorContext);
-                container.innerHTML = `<div class="error">Error al cargar los préstamos: ${error.message || 'Error desconocido'}</div>`;
+                
+                // Intentar cargar desde cache si falla la red
+                try {
+                    const cachedLoans = await loadFromCache('cuotas_cache');
+                    if (cachedLoans && cachedLoans.length > 0) {
+                        console.log('⚠️ Error de red, cargando desde cache...');
+                        PAGINATION_STATE.pendientes.allData = cachedLoans;
+                        PAGINATION_STATE.pendientes.filteredData = cachedLoans;
+                        PAGINATION_STATE.pendientes.currentPage = 1;
+                        setupSearchListener('pendientes', ['clients.nombre', 'clients.cedula'], renderPendientes);
+                        setTimeout(() => renderPendientes(cachedLoans), 0);
+                        return;
+                    }
+                } catch (cacheError) {
+                    console.error('Error cargando cache:', cacheError);
+                }
+                
+                container.innerHTML = `<div class="error" style="padding:20px;text-align:center;">
+                    <h3>⚠️ Error al cargar los préstamos</h3>
+                    <p style="font-size:14px;color:#666;margin:10px 0;">${error.message || 'Error desconocido'}</p>
+                    <button onclick="loadPendingQuotas()" style="margin-top:10px;padding:8px 16px;background:#10b981;color:white;border:none;border-radius:6px;cursor:pointer;">
+                        🔄 Reintentar
+                    </button>
+                </div>`;
             }
         }
 

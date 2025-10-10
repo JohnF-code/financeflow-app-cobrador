@@ -1,5 +1,5 @@
 // Service Worker para App Cobrador - Soporte offline completo
-const CACHE_NAME = 'cobrador-cache-v5.4';
+const CACHE_NAME = 'cobrador-cache-v5.5';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -66,9 +66,28 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // No cachear llamadas a Supabase API
+  // No cachear llamadas a Supabase API - dejar pasar sin interceptar
   if (url.hostname.includes('supabase.co')) {
-    event.respondWith(fetch(request));
+    event.respondWith(
+      fetch(request).catch(error => {
+        console.error('[SW] Supabase fetch failed:', error);
+        return new Response(JSON.stringify({ error: 'Network error' }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      })
+    );
+    return;
+  }
+  
+  // No cachear llamadas a unpkg.com - dejar pasar sin interceptar
+  if (url.hostname.includes('unpkg.com')) {
+    event.respondWith(
+      fetch(request).catch(error => {
+        console.error('[SW] Unpkg fetch failed:', error);
+        return caches.match(request);
+      })
+    );
     return;
   }
 
