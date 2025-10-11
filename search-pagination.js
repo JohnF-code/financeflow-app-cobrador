@@ -129,7 +129,7 @@ function changePage(stateKey, newPage) {
     }
 }
 
-// 🆕 Render individual cuotas (not grouped loans)
+// 🆕 Render individual cuotas con formato de préstamo (barra de progreso, etc.)
 function renderPendientes(allData) {
     const container = document.getElementById('pendingQuotasList');
     const state = PAGINATION_STATE.pendientes;
@@ -148,11 +148,21 @@ function renderPendientes(allData) {
         const statusColor = isOverdue ? '#ef4444' : '#10b981';
         const statusText = isOverdue ? `${cuota.daysOverdue} días atraso` : 'Al día';
         
-        // Datos del cliente desde la relación prestamos.clients
+        // Datos del cliente y préstamo desde la relación
         const clientName = cuota.prestamos?.clients?.nombre || 'N/A';
         const clientCedula = cuota.prestamos?.clients?.cedula || '';
         const clientId = cuota.prestamos?.cliente_id || '';
         const loanId = cuota.prestamo_id;
+        
+        // Calcular progreso del préstamo completo (si tenemos los datos)
+        const totalDias = cuota.prestamos?.total_dias || 0;
+        const cuotaDiaria = cuota.prestamos?.cuota_diaria || 0;
+        const montoTotal = cuotaDiaria * totalDias;
+        
+        // Estimar progreso basado en el número de cuota (aproximado)
+        const numeroCuota = cuota.numero_cuota || 0;
+        const progress = totalDias > 0 ? Math.round((numeroCuota / totalDias) * 100) : 0;
+        const cuotasPagadas = numeroCuota - 1; // Aproximado: asumimos que las anteriores están pagadas
         
         return `
         <div style="background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
@@ -169,32 +179,46 @@ function renderPendientes(allData) {
                 </div>
             </div>
             
-            <!-- Cuota Info -->
-            <div style="margin-bottom: 10px; padding: 8px; background: #f9fafb; border-radius: 6px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Cuota #${cuota.numero_cuota}</div>
-                        <div style="font-size: 14px; font-weight: bold; color: #333;">$${Number(cuota.monto_cuota).toLocaleString()}</div>
-                    </div>
-                    <div style="text-align: right;">
-                        <div style="font-size: 11px; color: #666; margin-bottom: 2px;">Vence</div>
-                        <div style="font-size: 12px; color: #333;">${new Date(cuota.fecha_vencimiento).toLocaleDateString('es-ES')}</div>
-                    </div>
+            <!-- Progress Bar del préstamo -->
+            <div style="margin: 10px 0;">
+                <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+                    <span>Cuota #${numeroCuota} de ${totalDias}</span>
+                    <span>${progress}%</span>
+                </div>
+                <div style="width: 100%; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden;">
+                    <div style="height: 100%; background: ${isOverdue ? '#ef4444' : '#10b981'}; width: ${progress}%; transition: width 0.3s;"></div>
                 </div>
             </div>
             
-            <!-- Saldo pendiente y acción -->
-            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #e5e7eb;">
+            <!-- Info Row -->
+            <div style="display: flex; justify-content: space-between; margin: 10px 0; font-size: 13px;">
                 <div>
-                    <div style="color: #666; font-size: 11px;">Saldo pendiente</div>
-                    <div style="color: #ef4444; font-weight: bold; font-size: 15px;">$${Number(cuota.saldo_pendiente).toLocaleString()}</div>
+                    <div style="color: #666;">Cuota diaria</div>
+                    <div style="font-weight: bold;">$${Number(cuotaDiaria).toLocaleString()}</div>
                 </div>
-                <div>
-                    <button onclick="showPaymentForm('${loanId}', '${clientId}')" 
-                            style="padding: 8px 16px; background: #10b981; color: white; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 500;">
-                        💳 Registrar Pago
-                    </button>
+                <div style="text-align: right;">
+                    <div style="color: #666;">Saldo cuota</div>
+                    <div style="font-weight: bold; color: ${isOverdue ? '#ef4444' : '#333'};">$${Number(cuota.saldo_pendiente).toLocaleString()}</div>
                 </div>
+            </div>
+            
+            <!-- Fecha de vencimiento -->
+            <div style="margin: 8px 0; padding: 6px; background: #f9fafb; border-radius: 4px; font-size: 12px; color: #666; text-align: center;">
+                📅 Vence: ${new Date(cuota.fecha_vencimiento).toLocaleDateString('es-ES')}
+            </div>
+            
+            <!-- Action Buttons -->
+            <div style="display: flex; gap: 8px; margin-top: 12px;">
+                <button onclick="showRegisterPaymentForm('${loanId}')" 
+                    class="btn ${isOverdue ? 'btn-danger' : 'btn-success'}" 
+                    style="flex: 1; padding: 10px;">
+                    💳 Registrar Pago
+                </button>
+                <button onclick="showCollectCreditForm('${loanId}')" 
+                    class="btn" 
+                    style="flex: 1; padding: 10px; background: #f59e0b; color: white;">
+                    🔄 Recoger Crédito
+                </button>
             </div>
         </div>
         `;
