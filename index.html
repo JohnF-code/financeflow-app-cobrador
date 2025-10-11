@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v8.2 Final</title>
-    <!-- Cache Buster: v8.2.<?php echo time(); ?> -->
+    <title>Cobrador App - v8.3</title>
+    <!-- Cache Buster: v8.3.<?php echo time(); ?> -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js?v=8.2"></script>
-    <script src="crypto.js?v=8.2"></script>
-    <script src="sync.js?v=8.2"></script>
-    <script src="iphone-debug.js?v=8.2"></script>
+    <script src="db.js?v=8.3"></script>
+    <script src="crypto.js?v=8.3"></script>
+    <script src="sync.js?v=8.3"></script>
+    <script src="iphone-debug.js?v=8.3"></script>
     <style display="none">
         * {
             margin: 0;
@@ -1995,34 +1995,38 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                 const today = getLocalToday();
                 console.log('📅 Fecha local hoy:', today);
                 
-                // 🆕 Obtener CUOTAS individuales pendientes para hoy (no préstamos agrupados)
+                // Primero obtener préstamos del cobrador con datos de clientes
+                const { data: prestamos, error: prestamosErr } = await APP.supabase
+                    .from('prestamos')
+                    .select('id, cliente_id, cuota_diaria, estado, monto_prestado, total_dias')
+                    .eq('panel_id', APP.collectorContext.panelId)
+                    .eq('cobrador_id', APP.collectorContext.collectorId)
+                    .in('estado', ['activo', 'vencido']);
+                
+                if (prestamosErr) throw prestamosErr;
+                
+                // Obtener clientes
+                const { data: clientes } = await APP.supabase
+                    .from('clients')
+                    .select('id, nombre, cedula, telefono')
+                    .eq('panel_id', APP.collectorContext.panelId);
+                
+                // Crear mapa de clientes
+                const clientesMap = new Map((clientes || []).map(c => [c.id, c]));
+                
+                // Enriquecer préstamos con datos de clientes
+                const prestamosEnriquecidos = (prestamos || []).map(p => ({
+                    ...p,
+                    clients: clientesMap.get(p.cliente_id) || null
+                }));
+                
+                const prestamosMap = new Map(prestamosEnriquecidos.map(p => [p.id, p]));
+                
+                // 🆕 Obtener CUOTAS individuales pendientes para hoy
                 const { data: cuotas, error: cuotasError } = await APP.supabase
                     .from('cuotas')
-                    .select(`
-                        id,
-                        prestamo_id,
-                        numero_cuota,
-                        monto_cuota,
-                        saldo_pendiente,
-                        fecha_vencimiento,
-                        estado,
-                        prestamos:prestamo_id (
-                            id,
-                            cliente_id,
-                            cuota_diaria,
-                            estado,
-                            monto_prestado,
-                            total_dias,
-                            cobrador_id,
-                            clients:cliente_id (
-                                id,
-                                nombre,
-                                cedula,
-                                telefono
-                            )
-                        )
-                    `)
-                    .eq('prestamos.cobrador_id', APP.collectorContext.collectorId)
+                    .select('id, prestamo_id, numero_cuota, monto_cuota, saldo_pendiente, fecha_vencimiento, estado')
+                    .in('prestamo_id', prestamosEnriquecidos.map(p => p.id))
                     .lte('fecha_vencimiento', today)
                     .neq('estado', 'pagada')
                     .order('fecha_vencimiento', { ascending: true });
@@ -2039,34 +2043,44 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                     return;
                 }
 
-                // Calcular días de mora para cada cuota
+                // Enriquecer cuotas con datos de préstamos y clientes
                 const todayDate = new Date(today);
-                const cuotasWithOverdue = cuotas.map(cuota => {
+                const cuotasEnriquecidas = cuotas.map(cuota => {
+                    const prestamo = prestamosMap.get(cuota.prestamo_id);
                     const dueDate = new Date(cuota.fecha_vencimiento);
                     const diffTime = todayDate - dueDate;
                     const daysOverdue = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
                     
                     return {
                         ...cuota,
-                        daysOverdue
+                        daysOverdue,
+                        prestamos: prestamo ? {
+                            id: prestamo.id,
+                            cliente_id: prestamo.cliente_id,
+                            cuota_diaria: prestamo.cuota_diaria,
+                            estado: prestamo.estado,
+                            monto_prestado: prestamo.monto_prestado,
+                            total_dias: prestamo.total_dias,
+                            clients: prestamo.clients
+                        } : null
                     };
                 });
 
-                console.log(`✅ Cuotas procesadas con mora`);
+                console.log(`✅ Cuotas enriquecidas: ${cuotasEnriquecidas.length}`);
                 
                 // Store data and render with pagination
-                PAGINATION_STATE.pendientes.allData = cuotasWithOverdue;
-                PAGINATION_STATE.pendientes.filteredData = cuotasWithOverdue;
+                PAGINATION_STATE.pendientes.allData = cuotasEnriquecidas;
+                PAGINATION_STATE.pendientes.filteredData = cuotasEnriquecidas;
                 PAGINATION_STATE.pendientes.currentPage = 1;
                 
                 // Setup search listener
                 setupSearchListener('pendientes', ['prestamos.clients.nombre', 'prestamos.clients.cedula'], renderPendientes);
                 
                 // Render with pagination
-                renderPendientes(cuotasWithOverdue);
+                renderPendientes(cuotasEnriquecidas);
                 
                 // 🆕 Save to cache for offline use
-                await saveToCache('cuotas_cache', cuotasWithOverdue);
+                await saveToCache('cuotas_cache', cuotasEnriquecidas);
                 console.log('💾 Cuotas guardadas en cache');
             } catch (error) {
                 console.error('Error loading pending loans:', error);
