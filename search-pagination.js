@@ -203,7 +203,7 @@ function renderPendientes(allData) {
     renderPagination('pendientes', state.filteredData.length);
 }
 
-// Render Clientes
+// Render Clientes (ORIGINAL - sin cambios)
 function renderClientes(allData) {
     const container = document.getElementById('clientsList');
     const state = PAGINATION_STATE.clientes;
@@ -212,27 +212,20 @@ function renderClientes(allData) {
     const paginatedData = getPaginatedData('clientes', state.filteredData);
     
     if (paginatedData.length === 0) {
-        container.innerHTML = '<div class="empty-state"><h3>No se encontraron resultados</h3></div>';
+        container.innerHTML = '<div class="empty-state"><h3>No se encontraron clientes</h3></div>';
         renderPagination('clientes', 0);
         return;
     }
     
     container.innerHTML = paginatedData.map(client => `
-        <div class="client-card">
-            <div class="client-header">
+        <div class="list-item" style="cursor: pointer; border-radius: 10px; padding: 12px; margin-bottom: 10px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                    <h3>${client.nombre}</h3>
-                    <p>CC: ${client.cedula || 'N/A'}</p>
+                    <h4 style="margin: 0 0 5px 0; font-size: 16px; color: #333;">${client.nombre}</h4>
+                    <p style="margin: 0; font-size: 13px; color: #666;">
+                        📱 ${client.telefono || 'N/A'} • 🆔 ${client.cedula || 'N/A'}
+                    </p>
                 </div>
-            </div>
-            <div class="client-info">
-                <p>📞 ${client.telefono || 'N/A'}</p>
-                <p>📧 ${client.email || 'N/A'}</p>
-            </div>
-            <div style="margin-top: 10px;">
-                <button onclick="showCreateCreditForm('${client.id}')" class="btn btn-primary" style="width: 100%;">
-                    Crear Crédito
-                </button>
             </div>
         </div>
     `).join('');
@@ -240,7 +233,7 @@ function renderClientes(allData) {
     renderPagination('clientes', state.filteredData.length);
 }
 
-// Render Creditos
+// Render Creditos (ORIGINAL - sin cambios)
 function renderCreditos(allData) {
     const container = document.getElementById('creditsList');
     const state = PAGINATION_STATE.creditos;
@@ -249,42 +242,31 @@ function renderCreditos(allData) {
     const paginatedData = getPaginatedData('creditos', state.filteredData);
     
     if (paginatedData.length === 0) {
-        container.innerHTML = '<div class="empty-state"><h3>No se encontraron resultados</h3></div>';
+        container.innerHTML = '<div class="empty-state"><h3>No se encontraron créditos</h3></div>';
         renderPagination('creditos', 0);
         return;
     }
     
-    container.innerHTML = paginatedData.map(credit => {
-        const progress = credit.totalAmount > 0 
-            ? Math.round((credit.paidAmount / credit.totalAmount) * 100) 
-            : 0;
-        
-        return `
-        <div class="credit-card">
-            <div class="credit-header">
-                <div>
-                    <h3>${credit.clients?.nombre || 'N/A'}</h3>
-                    <p>CC: ${credit.clients?.cedula || 'N/A'}</p>
-                </div>
-                <span class="badge badge-${credit.estado}">${credit.estado}</span>
+    container.innerHTML = paginatedData.map(credit => `
+        <div class="list-item" style="border-radius: 10px; padding: 12px; margin-bottom: 10px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <div>
+                <h4 style="margin: 0 0 5px 0; font-size: 16px; color: #333;">${credit.clients?.nombre || 'N/A'}</h4>
+                <p style="margin: 0; font-size: 13px; color: #666;">
+                    💰 $${Number(credit.monto_prestado).toLocaleString()} • 📅 ${credit.total_dias} días • 💵 $${Number(credit.cuota_diaria).toLocaleString()}/día
+                </p>
+                <p style="margin: 5px 0 0 0; font-size: 12px;">
+                    <span class="badge" style="padding: 2px 6px; border-radius: 4px; background: ${credit.estado === 'activo' ? '#10b981' : '#6b7280'}; color: white; font-size: 11px;">
+                        ${credit.estado}
+                    </span>
+                </p>
             </div>
-            <div class="credit-info">
-                <p>💰 Monto: $${Number(credit.monto_prestado).toLocaleString()}</p>
-                <p>📅 ${credit.total_dias} días</p>
-                <p>💵 Cuota: $${Number(credit.cuota_diaria).toLocaleString()}</p>
-            </div>
-            <div class="progress-bar">
-                <div class="progress-fill" style="width: ${progress}%"></div>
-            </div>
-            <p style="text-align: center; font-size: 12px; color: #666;">${progress}% pagado</p>
         </div>
-        `;
-    }).join('');
+    `).join('');
     
     renderPagination('creditos', state.filteredData.length);
 }
 
-// Render Pagos
+// Render Pagos (ORIGINAL - sin cambios)
 function renderPagos(allData) {
     const container = document.getElementById('paymentsList');
     const state = PAGINATION_STATE.pagos;
@@ -293,27 +275,35 @@ function renderPagos(allData) {
     const paginatedData = getPaginatedData('pagos', state.filteredData);
     
     if (paginatedData.length === 0) {
-        container.innerHTML = '<div class="empty-state"><h3>No se encontraron resultados</h3></div>';
+        container.innerHTML = '<div class="empty-state"><h3>No se encontraron pagos</h3></div>';
         renderPagination('pagos', 0);
         return;
     }
     
-    container.innerHTML = paginatedData.map(payment => `
-        <div class="payment-card">
-            <div class="payment-header">
+    container.innerHTML = paginatedData.map(payment => {
+        // Parse date correctly to avoid timezone issues
+        const fechaParts = (payment.fecha_pago || '').split('-');
+        const localDate = fechaParts.length === 3 
+            ? new Date(parseInt(fechaParts[0]), parseInt(fechaParts[1]) - 1, parseInt(fechaParts[2]))
+            : null;
+        const fechaStr = localDate ? localDate.toLocaleDateString('es-CO') : 'N/A';
+        
+        return `
+        <div class="list-item" style="border-radius: 10px; padding: 12px; margin-bottom: 10px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                    <h4>${payment.clients?.nombre || 'N/A'}</h4>
-                    <p>CC: ${payment.clients?.cedula || 'N/A'}</p>
+                    <h4 style="margin: 0 0 5px 0; font-size: 16px; color: #333;">${payment.clients?.nombre || 'N/A'}</h4>
+                    <p style="margin: 0; font-size: 13px; color: #666;">
+                        🆔 ${payment.clients?.cedula || 'N/A'} • ${fechaStr}
+                    </p>
                 </div>
-                <span class="badge badge-${payment.estado}">${payment.estado}</span>
-            </div>
-            <div class="payment-info">
-                <p>💰 Monto: $${Number(payment.monto).toLocaleString()}</p>
-                <p>📅 ${new Date(payment.fecha_pago).toLocaleDateString('es-ES')}</p>
-                <p>🕐 ${payment.hora_pago || 'N/A'}</p>
+                <div style="text-align: right;">
+                    <div style="font-size: 18px; font-weight: bold; color: #10b981;">$${Number(payment.monto).toLocaleString()}</div>
+                    <div style="font-size: 11px; color: #888;">${payment.hora_pago ? payment.hora_pago.substring(0, 5) : ''}</div>
+                </div>
             </div>
         </div>
-    `).join('');
+    `}).join('');
     
     renderPagination('pagos', state.filteredData.length);
 }
