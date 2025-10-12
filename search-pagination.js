@@ -78,11 +78,9 @@ function renderPagination(stateKey, totalItems) {
 
     if (totalPages <= 1 && totalItems <= state.pageSize) {
         // Mostrar solo contador si hay items pero no necesita paginación
-        const start = 1;
-        const end = totalItems;
         container.innerHTML = `
             <div style="padding: 12px 0; text-align: center; font-size: 13px; color: #666;">
-                Mostrando ${start}-${end} de ${totalItems} registros
+                ${totalItems} ${totalItems === 1 ? 'registro' : 'registros'}
             </div>
         `;
         return;
@@ -92,12 +90,9 @@ function renderPagination(stateKey, totalItems) {
     const start = ((state.currentPage - 1) * state.pageSize) + 1;
     const end = Math.min(state.currentPage * state.pageSize, totalItems);
 
-    let html = '<div style="display:flex; justify-content:space-between; align-items:center; padding:15px 0; gap:15px; flex-wrap:wrap;">';
+    let html = '<div style="display:flex; flex-direction:column; align-items:center; padding:15px 0; gap:10px;">';
     
-    // Contador de registros
-    html += `<div style="font-size:13px; color:#666;">Mostrando ${start}-${end} de ${totalItems} registros</div>`;
-    
-    // Controles de paginación
+    // Controles de paginación (arriba)
     html += '<div style="display:flex; gap:8px; align-items:center;">';
     
     // Previous button con flecha
@@ -141,7 +136,14 @@ function renderPagination(stateKey, totalItems) {
             →
         </button>`;
     
-    html += '</div></div>';
+    html += '</div>'; // Cierre de controles de paginación
+    
+    // Contador de registros (debajo de la paginación)
+    html += `<div style="font-size:13px; color:#666; text-align:center;">
+        ${start}-${end} de ${totalItems} registros
+    </div>`;
+    
+    html += '</div>'; // Cierre del contenedor principal
     container.innerHTML = html;
 }
 
