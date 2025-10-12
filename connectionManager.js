@@ -291,3 +291,4 @@ const ConnectionManager = {
 // Exportar como módulo global
 window.ConnectionManager = ConnectionManager;
 
+
