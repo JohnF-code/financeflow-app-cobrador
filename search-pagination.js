@@ -67,7 +67,7 @@ function setupSearchListener(stateKey, searchFields, renderFunction) {
     });
 }
 
-// Render pagination
+// Render pagination mejorada
 function renderPagination(stateKey, totalItems) {
     const state = PAGINATION_STATE[stateKey];
     const totalPages = Math.ceil(totalItems / state.pageSize);
@@ -76,38 +76,72 @@ function renderPagination(stateKey, totalItems) {
     
     if (!container) return;
 
-    if (totalPages <= 1) {
-        container.innerHTML = '';
+    if (totalPages <= 1 && totalItems <= state.pageSize) {
+        // Mostrar solo contador si hay items pero no necesita paginación
+        const start = 1;
+        const end = totalItems;
+        container.innerHTML = `
+            <div style="padding: 12px 0; text-align: center; font-size: 13px; color: #666;">
+                Mostrando ${start}-${end} de ${totalItems} registros
+            </div>
+        `;
         return;
     }
 
-    let html = '<div class="pagination">';
+    // Calcular rango de registros mostrados
+    const start = ((state.currentPage - 1) * state.pageSize) + 1;
+    const end = Math.min(state.currentPage * state.pageSize, totalItems);
+
+    let html = '<div style="display:flex; justify-content:space-between; align-items:center; padding:15px 0; gap:15px; flex-wrap:wrap;">';
     
-    // Previous button
-    html += `<button class="page-btn" ${state.currentPage === 1 ? 'disabled' : ''} 
-            onclick="changePage('${stateKey}', ${state.currentPage - 1})">
-            ‹ Anterior
+    // Contador de registros
+    html += `<div style="font-size:13px; color:#666;">Mostrando ${start}-${end} de ${totalItems} registros</div>`;
+    
+    // Controles de paginación
+    html += '<div style="display:flex; gap:8px; align-items:center;">';
+    
+    // Previous button con flecha
+    html += `<button ${state.currentPage === 1 ? 'disabled' : ''} 
+            onclick="changePage('${stateKey}', ${state.currentPage - 1})"
+            style="padding:8px 12px; background:${state.currentPage === 1 ? '#e5e7eb' : '#10b981'}; color:${state.currentPage === 1 ? '#9ca3af' : 'white'}; border:none; border-radius:6px; cursor:${state.currentPage === 1 ? 'not-allowed' : 'pointer'}; font-size:16px; font-weight:bold;">
+            ←
         </button>`;
     
-    // Page numbers
-    for (let i = 1; i <= totalPages; i++) {
-        if (i === 1 || i === totalPages || (i >= state.currentPage - 1 && i <= state.currentPage + 1)) {
-            html += `<button class="page-btn ${i === state.currentPage ? 'active' : ''}" 
-                    onclick="changePage('${stateKey}', ${i})">
-                    ${i}
-                </button>`;
-        } else if (i === state.currentPage - 2 || i === state.currentPage + 2) {
-            html += '<span class="page-ellipsis">...</span>';
+    // Page numbers (solo 3 visibles)
+    const showPages = [];
+    if (totalPages <= 5) {
+        for (let i = 1; i <= totalPages; i++) showPages.push(i);
+    } else {
+        if (state.currentPage <= 2) {
+            showPages.push(1, 2, 3, '...', totalPages);
+        } else if (state.currentPage >= totalPages - 1) {
+            showPages.push(1, '...', totalPages - 2, totalPages - 1, totalPages);
+        } else {
+            showPages.push(1, '...', state.currentPage - 1, state.currentPage, state.currentPage + 1, '...', totalPages);
         }
     }
     
-    // Next button
-    html += `<button class="page-btn" ${state.currentPage === totalPages ? 'disabled' : ''} 
-            onclick="changePage('${stateKey}', ${state.currentPage + 1})">
-            Siguiente ›
+    showPages.forEach(page => {
+        if (page === '...') {
+            html += '<span style="padding:0 4px; color:#9ca3af;">...</span>';
+        } else {
+            const isActive = page === state.currentPage;
+            html += `<button 
+                    onclick="changePage('${stateKey}', ${page})"
+                    style="min-width:36px; padding:8px 12px; background:${isActive ? '#10b981' : 'white'}; color:${isActive ? 'white' : '#333'}; border:1px solid ${isActive ? '#10b981' : '#ddd'}; border-radius:6px; cursor:pointer; font-size:14px; font-weight:${isActive ? 'bold' : 'normal'};">
+                    ${page}
+                </button>`;
+        }
+    });
+    
+    // Next button con flecha
+    html += `<button ${state.currentPage === totalPages ? 'disabled' : ''} 
+            onclick="changePage('${stateKey}', ${state.currentPage + 1})"
+            style="padding:8px 12px; background:${state.currentPage === totalPages ? '#e5e7eb' : '#10b981'}; color:${state.currentPage === totalPages ? '#9ca3af' : 'white'}; border:none; border-radius:6px; cursor:${state.currentPage === totalPages ? 'not-allowed' : 'pointer'}; font-size:16px; font-weight:bold;">
+            →
         </button>`;
     
-    html += '</div>';
+    html += '</div></div>';
     container.innerHTML = html;
 }
 
@@ -126,6 +160,22 @@ function changePage(stateKey, newPage) {
     const renderFunction = renderFunctions[stateKey];
     if (renderFunction) {
         renderFunction(state.filteredData);
+    }
+    
+    // Scroll suave al inicio de la lista
+    const listContainers = {
+        pendientes: 'pendingQuotasList',
+        clientes: 'clientsList',
+        creditos: 'creditsList',
+        pagos: 'paymentsList'
+    };
+    
+    const listId = listContainers[stateKey];
+    if (listId) {
+        const listElement = document.getElementById(listId);
+        if (listElement) {
+            listElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     }
 }
 
