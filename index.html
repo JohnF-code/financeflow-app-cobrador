@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v10.0 Fixed</title>
-    <!-- Cache Buster: v10.0.<?php echo time(); ?> -->
+    <title>Cobrador App - v10.1 Connection Fix</title>
+    <!-- Cache Buster: v10.1.<?php echo time(); ?> -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
@@ -1417,7 +1417,7 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
         // Initialize app
         async function init() {
             try {
-                console.log('🚀 Iniciando Cobrador App v10.0...');
+                console.log('🚀 Iniciando Cobrador App v10.1...');
                 
                 // 🆕 1. Inicializar IndexedDB
                 try {
@@ -1460,7 +1460,16 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                 
                 // 🆕 5. Validar conexión inicial con Vercel
                 const vercelReachable = await ConnectionManager.validarConexionInicial();
-                APP.isOnline = vercelReachable;
+                
+                // 🆕 5b. Si Vercel responde, validar también Supabase
+                let supabaseReachable = false;
+                if (vercelReachable) {
+                    supabaseReachable = await ConnectionManager.validarConexionSupabase(SUPABASE_ANON_KEY);
+                }
+                
+                // Estado final de conexión
+                APP.isOnline = vercelReachable && supabaseReachable;
+                console.log('🔌 Estado final de conexión:', { vercelReachable, supabaseReachable, isOnline: APP.isOnline });
                 
                 // 6. Check authentication (online o desde cache)
                 let session = null;
@@ -1784,15 +1793,9 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
         async function loadDashboardData() {
             try {
                 console.log('📊 Cargando datos del dashboard...');
+                console.log('🔌 APP.isOnline:', APP.isOnline);
                 
-                // 🆕 Usar ConnectionManager para verificar estado real
-                const connectionStatus = ConnectionManager.getStatus();
-                const isOnline = connectionStatus.online && connectionStatus.supabaseReachable;
-                
-                APP.isOnline = isOnline;
-                console.log('🔌 Estado de conexión:', connectionStatus);
-                
-                if (!isOnline) {
+                if (!APP.isOnline) {
                     console.log('📵 Offline - Cargando desde cache...');
                     await loadFromCacheIfOffline();
                 } else {
@@ -1812,6 +1815,7 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                     } catch (loadError) {
                         console.error('❌ Error cargando desde Supabase:', loadError);
                         console.log('📂 Intentando cargar desde cache como fallback...');
+                        APP.isOnline = false;
                         await loadFromCacheIfOffline();
                     }
                 }
