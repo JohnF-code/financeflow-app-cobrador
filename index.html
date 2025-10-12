@@ -1211,80 +1211,36 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                     }
                 }
                 
-                // 3. 🆕 Cache SALDO Y MORA TOTAL - calcular manualmente si vista no disponible
-                updateBanner('💰', 'Calculando saldos y mora...', 'Paso 3 de 6 ⏳');
-                await new Promise(resolve => setTimeout(resolve, 800));
+                // 3. Cache SALDO Y MORA TOTAL (OPCIONAL - no bloquea el proceso)
+                updateBanner('💰', 'Descargando saldos...', 'Paso 3 de 6 ⏳');
+                await new Promise(resolve => setTimeout(resolve, 500));
                 
-                let saldosMora = [];
-                
-                try {
-                    // Intentar usar vista materializada primero
-                    const { data: vistaData, error: vistaError } = await APP.supabase
-                        .from('v_saldo_total_prestamo')
-                        .select('prestamo_id, cliente_id, cuota_diaria, total_dias, monto_prestado, saldo_capital, mora_total, saldo_total_con_mora')
-                        .eq('panel_id', APP.collectorContext.panelId)
-                        .eq('cobrador_id', APP.collectorContext.collectorId)
-                        .in('estado_prestamo', ['activo', 'vencido']);
-                    
-                    if (!vistaError && vistaData?.length > 0) {
-                        saldosMora = vistaData;
-                        addDebugLog(`📥 Vista: ${saldosMora.length} préstamos con saldo/mora`);
-                    } else {
-                        throw new Error('Vista no disponible o sin datos');
-                    }
-                } catch (err) {
-                    // FALLBACK: Calcular manualmente desde cuotas (PERO SIN BLOQUEAR)
-                    addDebugLog(`⚠️ Vista no disponible - calculando manualmente (${prestamos?.length || 0} préstamos)`);
-                    
+                // Ejecutar con timeout de 5 segundos - si tarda más, continuar sin él
+                const saldosPromise = (async () => {
                     try {
-                        if (prestamos?.length) {
-                            // Calcular en paralelo en lugar de secuencial
-                            const promises = prestamos.map(async (prestamo) => {
-                                try {
-                                    const { data: cuotas } = await APP.supabase
-                                        .from('cuotas')
-                                        .select('saldo_pendiente, mora_acumulada, estado')
-                                        .eq('prestamo_id', prestamo.id);
-                                    
-                                    const cuotasPendientes = cuotas?.filter(c => c.estado !== 'pagada') || [];
-                                    const saldo_capital = cuotasPendientes.reduce((sum, c) => sum + Number(c.saldo_pendiente || 0), 0);
-                                    const mora_total = cuotasPendientes.reduce((sum, c) => sum + Number(c.mora_acumulada || 0), 0);
-                                    
-                                    return {
-                                        prestamo_id: prestamo.id,
-                                        cliente_id: prestamo.cliente_id,
-                                        cuota_diaria: prestamo.cuota_diaria,
-                                        total_dias: prestamo.total_dias,
-                                        monto_prestado: prestamo.monto_prestado,
-                                        saldo_capital,
-                                        mora_total,
-                                        saldo_total_con_mora: saldo_capital + mora_total
-                                    };
-                                } catch (e) {
-                                    console.error(`Error calculando préstamo ${prestamo.id}:`, e);
-                                    return null;
-                                }
-                            });
-                            
-                            saldosMora = (await Promise.all(promises)).filter(s => s !== null);
-                            addDebugLog(`🔄 Calculado: ${saldosMora.length} préstamos`);
+                        const { data: vistaData, error: vistaError } = await APP.supabase
+                            .from('v_saldo_total_prestamo')
+                            .select('prestamo_id, saldo_capital, mora_total, saldo_total_con_mora')
+                            .eq('panel_id', APP.collectorContext.panelId)
+                            .eq('cobrador_id', APP.collectorContext.collectorId)
+                            .in('estado_prestamo', ['activo', 'vencido']);
+                        
+                        if (!vistaError && vistaData?.length > 0) {
+                            await saveToCache('saldos_mora_cache', vistaData);
+                            addDebugLog(`✅ ${vistaData.length} saldos cacheados`);
+                        } else {
+                            addDebugLog(`⚠️ Vista sin datos (continuando...)`);
                         }
-                    } catch (calcError) {
-                        addDebugLog(`❌ Error calculando saldos: ${calcError.message}`);
+                    } catch (err) {
+                        addDebugLog(`⚠️ Saldos opcionales - omitidos (continuando...)`);
                     }
-                }
+                })();
                 
-                // Siempre guardar lo que tengamos (aunque sea vacío)
-                try {
-                    if (saldosMora?.length) {
-                        await saveToCache('saldos_mora_cache', saldosMora);
-                        addDebugLog(`✅ ${saldosMora.length} saldos cacheados`);
-                    } else {
-                        addDebugLog(`⚠️ No hay saldos para cachear (continuando...)`);
-                    }
-                } catch (saveError) {
-                    addDebugLog(`❌ Error guardando cache: ${saveError.message}`);
-                }
+                // Esperar máximo 5 segundos, luego continuar de todos modos
+                await Promise.race([
+                    saldosPromise,
+                    new Promise(resolve => setTimeout(resolve, 5000))
+                ]);
                 
                 // 4. 🆕 Cache CUOTAS individuales pendientes (no préstamos agrupados)
                 updateBanner('📅', 'Descargando cuotas pendientes...', 'Paso 4 de 6 ⏳');
