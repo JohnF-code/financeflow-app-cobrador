@@ -5,7 +5,7 @@ async function showRegisterPaymentForm(loanId) {
     try {
         let loan, totalPending;
         
-        // 🆕 Si está online, obtener de Supabase
+        // 🆕 Si está online, obtener de Supabase con mora
         if (APP.isOnline && navigator.onLine) {
             const { data } = await APP.supabase
                 .from('prestamos')
@@ -14,18 +14,21 @@ async function showRegisterPaymentForm(loanId) {
                 .single();
             loan = data;
             
-            const { data: cuotas } = await APP.supabase
-                .from('cuotas')
-                .select('saldo_pendiente')
+            // Obtener saldo + mora desde vista materializada
+            const { data: saldoData } = await APP.supabase
+                .from('v_saldo_total_prestamo')
+                .select('saldo_total_con_mora')
                 .eq('prestamo_id', loanId)
-                .neq('estado', 'pagada');
+                .single();
             
-            totalPending = cuotas?.reduce((s, c) => s + Number(c.saldo_pendiente || 0), 0) || 0;
+            totalPending = saldoData?.saldo_total_con_mora || 0;
         } else {
             // 🆕 Si está offline, obtener del cache
             console.log('📵 Modo offline - cargando préstamo del cache...');
             const cachedLoans = await loadFromCache('prestamos_detalle_cache');
+            const cachedSaldos = await loadFromCache('saldos_mora_cache');
             const cachedLoan = cachedLoans?.find(l => l.id === loanId);
+            const saldoMora = cachedSaldos?.find(s => s.prestamo_id === loanId);
             
             if (!cachedLoan) {
                 console.warn(`⚠️ Préstamo ${loanId} no está en cache - modo emergencia`);
@@ -48,9 +51,10 @@ async function showRegisterPaymentForm(loanId) {
                     cuota_diaria: cachedLoan.cuota_diaria,
                     clients: cachedLoan.clients
                 };
-                totalPending = cachedLoan.saldo_total_pendiente;
+                // 🆕 Usar saldo + mora desde cache
+                totalPending = saldoMora?.saldo_total_con_mora || 0;
                 
-                console.log(`📂 Préstamo cargado del cache - Saldo: $${totalPending}`);
+                console.log(`📂 Préstamo cargado del cache - Saldo: $${totalPending} (incluye mora)`);
             }
         }
         
@@ -106,7 +110,7 @@ async function showCollectCreditForm(loanId) {
     try {
         let loan, saldoDescontar, settings;
         
-        // 🆕 Si está online, obtener de Supabase
+        // 🆕 Si está online, obtener de Supabase con mora
         if (APP.isOnline && navigator.onLine) {
             const { data: loanData } = await APP.supabase
                 .from('prestamos')
@@ -115,12 +119,14 @@ async function showCollectCreditForm(loanId) {
                 .single();
             loan = loanData;
             
-            const { data: cuotas } = await APP.supabase
-                .from('cuotas')
-                .select('saldo_pendiente')
+            // Obtener saldo + mora desde vista materializada
+            const { data: saldoData } = await APP.supabase
+                .from('v_saldo_total_prestamo')
+                .select('saldo_total_con_mora')
                 .eq('prestamo_id', loanId)
-                .neq('estado', 'pagada');
-            saldoDescontar = cuotas?.reduce((s, c) => s + Number(c.saldo_pendiente || 0), 0) || 0;
+                .single();
+            
+            saldoDescontar = saldoData?.saldo_total_con_mora || 0;
             
             const { data: settingsData } = await APP.supabase
                 .from('settings')
@@ -132,7 +138,9 @@ async function showCollectCreditForm(loanId) {
             // 🆕 Si está offline, obtener del cache
             console.log('📵 Modo offline - cargando préstamo del cache...');
             const cachedLoans = await loadFromCache('prestamos_detalle_cache');
+            const cachedSaldos = await loadFromCache('saldos_mora_cache');
             const cachedLoan = cachedLoans?.find(l => l.id === loanId);
+            const saldoMora = cachedSaldos?.find(s => s.prestamo_id === loanId);
             
             if (!cachedLoan) {
                 showError('⚠️ No hay datos de este préstamo en cache. Conecta a internet y recarga los datos primero.');
@@ -146,7 +154,8 @@ async function showCollectCreditForm(loanId) {
                 cuota_diaria: cachedLoan.cuota_diaria,
                 clients: cachedLoan.clients
             };
-            saldoDescontar = cachedLoan.saldo_total_pendiente;
+            // 🆕 Usar saldo + mora desde cache
+            saldoDescontar = saldoMora?.saldo_total_con_mora || 0;
             
             // Obtener settings del cache
             const cachedSettings = await loadFromCache('panel_settings_cache');
@@ -157,7 +166,7 @@ async function showCollectCreditForm(loanId) {
                 return;
             }
             
-            console.log(`📂 Préstamo cargado del cache - Saldo: $${saldoDescontar}`);
+            console.log(`📂 Préstamo cargado del cache - Saldo: $${saldoDescontar} (incluye mora)`);
         }
         
         const minMonto = Number(settings?.valor_minimo_prestamo || 50000);
