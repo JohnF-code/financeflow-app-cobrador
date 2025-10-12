@@ -249,13 +249,13 @@ function renderPendientes(allData) {
                     <div style="font-weight: bold;">$${Number(cuotaDiaria).toLocaleString()}</div>
                 </div>
                 <div style="text-align: right;">
-                    <div style="color: #666;">Saldo cuota</div>
-                    <div style="font-weight: bold; color: #333;">$${Number(cuota.saldo_pendiente).toLocaleString()}</div>
+                    <div style="color: #666;">Saldo Total</div>
+                    <div style="font-weight: bold; color: #333;">$${Number(cuota.saldo_total_prestamo || 0).toLocaleString()}</div>
                 </div>
-                ${cuota.mora_acumulada > 0 ? `
+                ${(cuota.mora_total_prestamo || 0) > 0 ? `
                 <div style="text-align: right;">
-                    <div style="color: #666;">Mora</div>
-                    <div style="font-weight: bold; color: #ef4444;">$${Number(cuota.mora_acumulada).toLocaleString()}</div>
+                    <div style="color: #666;">Mora Total</div>
+                    <div style="font-weight: bold; color: #ef4444;">$${Number(cuota.mora_total_prestamo).toLocaleString()}</div>
                 </div>
                 ` : ''}
             </div>

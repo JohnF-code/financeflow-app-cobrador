@@ -1999,38 +1999,43 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                 const today = getLocalToday();
                 console.log('📅 Fecha local hoy:', today);
                 
-                // Primero obtener préstamos del cobrador con datos de clientes
-                const { data: prestamos, error: prestamosErr } = await APP.supabase
-                    .from('prestamos')
-                    .select('id, cliente_id, cuota_diaria, estado, monto_prestado, total_dias')
+                // 🆕 Obtener resumen de préstamos con saldo y mora total desde vista materializada
+                const { data: prestamosResumen, error: resumenErr } = await APP.supabase
+                    .from('v_saldo_total_prestamo')
+                    .select('prestamo_id, cliente_id, cliente_nombre, cliente_cedula, cuota_diaria, total_dias, monto_prestado, saldo_capital_pendiente, mora_acumulada_total, saldo_total_con_mora')
                     .eq('panel_id', APP.collectorContext.panelId)
                     .eq('cobrador_id', APP.collectorContext.collectorId)
-                    .in('estado', ['activo', 'vencido']);
+                    .in('prestamo_estado', ['activo', 'vencido']);
                 
-                if (prestamosErr) throw prestamosErr;
+                if (resumenErr) {
+                    console.error('❌ Error cargando resumen préstamos:', resumenErr);
+                    throw resumenErr;
+                }
                 
-                // Obtener clientes
-                const { data: clientes } = await APP.supabase
-                    .from('clients')
-                    .select('id, nombre, cedula, telefono')
-                    .eq('panel_id', APP.collectorContext.panelId);
+                console.log(`📊 Préstamos con saldo: ${prestamosResumen?.length || 0}`);
                 
-                // Crear mapa de clientes
-                const clientesMap = new Map((clientes || []).map(c => [c.id, c]));
-                
-                // Enriquecer préstamos con datos de clientes
-                const prestamosEnriquecidos = (prestamos || []).map(p => ({
-                    ...p,
-                    clients: clientesMap.get(p.cliente_id) || null
-                }));
-                
-                const prestamosMap = new Map(prestamosEnriquecidos.map(p => [p.id, p]));
+                // Crear mapa de préstamos con su saldo total y mora total
+                const prestamosMap = new Map((prestamosResumen || []).map(p => [p.prestamo_id, {
+                    id: p.prestamo_id,
+                    cliente_id: p.cliente_id,
+                    cuota_diaria: p.cuota_diaria,
+                    total_dias: p.total_dias,
+                    monto_prestado: p.monto_prestado,
+                    saldo_capital_total: p.saldo_capital_pendiente,
+                    mora_total: p.mora_acumulada_total,
+                    saldo_con_mora_total: p.saldo_total_con_mora,
+                    clients: {
+                        id: p.cliente_id,
+                        nombre: p.cliente_nombre,
+                        cedula: p.cliente_cedula
+                    }
+                }]));
                 
                 // 🆕 Obtener CUOTAS individuales pendientes para hoy (con mora)
                 const { data: cuotas, error: cuotasError } = await APP.supabase
                     .from('cuotas')
                     .select('id, prestamo_id, numero_cuota, monto_cuota, saldo_pendiente, mora_acumulada, mora_diaria, fecha_vencimiento, estado')
-                    .in('prestamo_id', prestamosEnriquecidos.map(p => p.id))
+                    .in('prestamo_id', Array.from(prestamosMap.keys()))
                     .lte('fecha_vencimiento', today)
                     .neq('estado', 'pagada')
                     .order('fecha_vencimiento', { ascending: true });
@@ -2047,7 +2052,7 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                     return;
                 }
 
-                // Enriquecer cuotas con datos de préstamos y clientes
+                // Enriquecer cuotas con datos de préstamos y clientes + saldo total y mora total
                 const todayDate = new Date(today);
                 const cuotasEnriquecidas = cuotas.map(cuota => {
                     const prestamo = prestamosMap.get(cuota.prestamo_id);
@@ -2058,11 +2063,14 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                     return {
                         ...cuota,
                         daysOverdue,
+                        // 🆕 Saldo y mora TOTALES del préstamo (no solo de esta cuota)
+                        saldo_total_prestamo: prestamo?.saldo_capital_total || 0,
+                        mora_total_prestamo: prestamo?.mora_total || 0,
+                        saldo_con_mora_prestamo: prestamo?.saldo_con_mora_total || 0,
                         prestamos: prestamo ? {
                             id: prestamo.id,
                             cliente_id: prestamo.cliente_id,
                             cuota_diaria: prestamo.cuota_diaria,
-                            estado: prestamo.estado,
                             monto_prestado: prestamo.monto_prestado,
                             total_dias: prestamo.total_dias,
                             clients: prestamo.clients
