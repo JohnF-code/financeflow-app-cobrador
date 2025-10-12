@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v8.8 Mora Fix</title>
-    <!-- Cache Buster: v8.8.<?php echo time(); ?> -->
+    <title>Cobrador App - v9.9 Connection Manager</title>
+    <!-- Cache Buster: v9.9.<?php echo time(); ?> -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js?v=8.8"></script>
-    <script src="crypto.js?v=8.8"></script>
-    <script src="sync.js?v=8.8"></script>
-    <script src="iphone-debug.js?v=8.8"></script>
+    <script src="db.js?v=9.9"></script>
+    <script src="crypto.js?v=9.9"></script>
+    <script src="sync.js?v=9.9"></script>
+    <script src="connectionManager.js?v=9.9"></script>
+    <script src="iphone-debug.js?v=9.9"></script>
     <style display="none">
         * {
             margin: 0;
@@ -683,8 +684,8 @@
     <!-- Scripts -->
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="config.js?v=4.7"></script>
-    <script src="search-pagination.js?v=4.7"></script>
-    <script src="payment-forms.js?v=4.7"></script>
+    <script src="search-pagination.js?v=9.9"></script>
+    <script src="payment-forms.js?v=9.9"></script>
     <script>
         // Global app state
         const APP = {
@@ -1416,7 +1417,7 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
         // Initialize app
         async function init() {
             try {
-                console.log('🚀 Iniciando Cobrador App v3.0...');
+                console.log('🚀 Iniciando Cobrador App v9.9...');
                 
                 // 🆕 1. Inicializar IndexedDB
                 try {
@@ -1437,33 +1438,101 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                 // 3. Initialize Supabase
                 APP.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
                 
-                // 4. Check authentication
-                const { data: { session } } = await APP.supabase.auth.getSession();
-                if (!session) {
-                    showLogin();
-                    return;
+                // 🆕 4. Inicializar ConnectionManager con callback de sincronización
+                ConnectionManager.init(SUPABASE_URL, async () => {
+                    console.log('🔄 Reconexión detectada - Sincronizando...');
+                    
+                    // Sincronizar datos pendientes
+                    if (typeof sincronizarDatosPendientes === 'function') {
+                        await sincronizarDatosPendientes();
+                    }
+                    
+                    // Refrescar cache de datos críticos
+                    if (APP.collectorContext?.collectorId) {
+                        await prepareOfflineData();
+                    }
+                    
+                    // Recargar dashboard
+                    await loadDashboardData();
+                    
+                    showSuccess('✅ Datos sincronizados correctamente');
+                });
+                
+                // 🆕 5. Validar conexión inicial con Vercel
+                const vercelReachable = await ConnectionManager.validarConexionInicial();
+                APP.isOnline = vercelReachable;
+                
+                // 6. Check authentication (online o desde cache)
+                let session = null;
+                let offlineAuth = false;
+                
+                try {
+                    const { data } = await APP.supabase.auth.getSession();
+                    session = data?.session;
+                } catch (authError) {
+                    console.warn('⚠️ Error obteniendo sesión:', authError);
                 }
                 
-                // 5. Get collector context
-                await getCollectorContext();
+                // Si no hay sesión online, intentar login offline
+                if (!session) {
+                    // Intentar cargar credenciales guardadas
+                    const savedAuth = await loadFromCache('auth_cache');
+                    
+                    if (savedAuth && savedAuth.length > 0) {
+                        const authData = savedAuth[0];
+                        console.log('🔐 Sesión offline encontrada:', authData.email);
+                        
+                        // Crear sesión offline simulada
+                        offlineAuth = true;
+                        APP.offlineAuth = authData;
+                    } else {
+                        // Sin sesión online ni offline - mostrar login
+                        showLogin();
+                        return;
+                    }
+                }
+                
+                // 7. Get collector context (online o desde cache)
+                try {
+                    await getCollectorContext();
+                } catch (contextError) {
+                    console.warn('⚠️ Error obteniendo contexto:', contextError);
+                    
+                    // Si estamos offline, cargar contexto desde cache
+                    if (offlineAuth && APP.offlineAuth) {
+                        APP.collectorContext = {
+                            collectorId: APP.offlineAuth.collector_id,
+                            collectorName: APP.offlineAuth.nombre || 'Cobrador',
+                            panelId: APP.offlineAuth.panel_id
+                        };
+                        console.log('📂 Contexto cargado desde cache offline');
+                    } else {
+                        throw contextError;
+                    }
+                }
                 
                 console.log('📍 About to setup event listeners...');
                 
-                // 6. Setup event listeners
+                // 8. Setup event listeners
                 setupEventListeners();
                 
                 console.log('📍 Event listeners setup complete, loading data...');
                 
-                // 7. Load initial data (online) OR from cache (offline)
+                // 9. Load initial data (online) OR from cache (offline)
                 await loadDashboardData();
                 
-                // 8. Setup offline handling & connection listeners
+                // 10. Setup offline handling & connection listeners
                 setupOfflineHandling();
                 
-                // 🆕 9. Pre-cache critical data for offline (if online)
+                // 🆕 11. Pre-cache critical data for offline (if online)
                 if (APP.isOnline && navigator.onLine) {
                     console.log('🔄 Online detectado - preparando datos offline...');
                     await prepareOfflineData();
+                }
+                
+                // Mostrar indicador de modo offline si aplica
+                if (offlineAuth) {
+                    showWarning('📵 Modo offline - Los cambios se sincronizarán al reconectar');
                 }
                 
                 console.log('✅ App inicializada correctamente');
@@ -2537,8 +2606,12 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
 
         // Register payment
         async function registerPayment(quotaId, amount, prestamoId, clienteId) {
-            if (!APP.isOnline) {
+            // 🆕 Validar conexión antes de intentar enviar
+            const isOnline = await ConnectionManager.validarAntesDeEnviar();
+            
+            if (!isOnline) {
                 // Store offline
+                console.log('📵 Sin conexión - Guardando pago offline');
                 APP.offlineData.payments.push({
                     cuota_id: quotaId,
                     prestamo_id: prestamoId,
@@ -2548,7 +2621,12 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                     hora_pago: new Date().toTimeString().split(' ')[0],
                     status: 'pending_sync'
                 });
-                showSuccess('Pago guardado offline - se sincronizará cuando se restaure la conexión');
+                
+                // Guardar en IndexedDB también
+                await saveToCache('cola_sync', APP.offlineData.payments);
+                
+                showSuccess('💾 Pago guardado offline - se sincronizará al reconectar');
+                APP.isOnline = false;
                 return;
             }
 
@@ -3902,12 +3980,21 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                 const loginError = document.getElementById('loginError');
 
                 loginBtn.disabled = true;
-                loginBtn.textContent = 'Iniciando...';
+                loginBtn.textContent = 'Validando conexión...';
                 loginError.style.display = 'none';
 
                 try {
                     console.log('Attempting login with:', email);
                     console.log('Supabase client:', APP.supabase ? 'initialized' : 'NOT initialized');
+                    
+                    // 🆕 Validar conexión con Supabase antes de intentar login
+                    const supabaseReachable = await ConnectionManager.validarConexionSupabase(SUPABASE_ANON_KEY);
+                    
+                    if (!supabaseReachable) {
+                        throw new Error('No hay conexión con el servidor. Verifica tu conexión a internet.');
+                    }
+                    
+                    loginBtn.textContent = 'Iniciando sesión...';
                     
                     const { data, error } = await APP.supabase.auth.signInWithPassword({
                         email,
@@ -3917,6 +4004,33 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                     console.log('Login response:', { data, error });
 
                     if (error) throw error;
+
+                    // 🆕 Guardar credenciales en cache para login offline
+                    if (data.user) {
+                        try {
+                            // Obtener información del cobrador
+                            const { data: collector } = await APP.supabase
+                                .from('collectors')
+                                .select('id, panel_id, user_id')
+                                .eq('user_id', data.user.id)
+                                .single();
+                            
+                            const authData = {
+                                id: data.user.id,
+                                email: data.user.email,
+                                nombre: data.user.user_metadata?.nombre || email.split('@')[0],
+                                collector_id: collector?.id,
+                                panel_id: collector?.panel_id,
+                                last_login: new Date().toISOString()
+                            };
+                            
+                            // Guardar en cache para login offline futuro
+                            await saveToCache('auth_cache', [authData]);
+                            console.log('✅ Credenciales guardadas en cache para modo offline');
+                        } catch (cacheError) {
+                            console.warn('⚠️ No se pudo guardar auth cache:', cacheError);
+                        }
+                    }
 
                     console.log('Login successful, reloading...');
                     // Reload page to initialize app
