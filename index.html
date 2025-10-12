@@ -2449,36 +2449,77 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
             if (pendingPaymentsEl) pendingPaymentsEl.textContent = APP.offlineData.payments.length;
         }
 
-        // Load today's stats using optimized RPC
+        // Load today's stats using optimized RPC or calculate from cache
         async function loadTodayStats() {
             try {
                 const today = getLocalToday();
                 console.log('📊 Loading dashboard stats for:', today);
                 
-                // Call optimized RPC that returns all metrics in one query
-                const { data, error } = await APP.supabase
-                    .rpc('get_collector_daily_summary', {
-                        p_collector_id: APP.collectorContext.collectorId,
-                        p_fecha: today
-                    });
+                // Try RPC first (online)
+                if (APP.isOnline && navigator.onLine) {
+                    try {
+                        const { data, error } = await APP.supabase
+                            .rpc('get_collector_daily_summary', {
+                                p_collector_id: APP.collectorContext.collectorId,
+                                p_fecha: today
+                            });
 
-                if (error) {
-                    console.error('RPC error:', error);
-                    throw error;
+                        if (!error && data) {
+                            console.log('📊 Dashboard data from RPC:', data);
+                            document.getElementById('totalCollected').textContent = '$' + Number(data.total_cobrado || 0).toLocaleString();
+                            document.getElementById('saldoCaja').textContent = '$' + Number(data.saldo_caja || 0).toLocaleString();
+                            document.getElementById('creditosCount').textContent = '#' + (data.creditos_count || 0);
+                            document.getElementById('creditosMonto').textContent = '$' + Number(data.creditos_monto || 0).toLocaleString();
+                            document.getElementById('baseDiaria').textContent = '$' + Number(data.base_diaria || 0).toLocaleString();
+                            document.getElementById('gastos').textContent = '$' + Number(data.gastos || 0).toLocaleString();
+                            document.getElementById('clientesCount').textContent = '#' + (data.clientes_count || 0);
+                            document.getElementById('syncedPayments').textContent = data.pagos_sincronizados || 0;
+                            document.getElementById('pendingPayments').textContent = APP.offlineData.payments.length;
+                            return;
+                        }
+                    } catch (rpcError) {
+                        console.warn('⚠️ RPC failed, calculating from cache:', rpcError);
+                    }
                 }
-
-                console.log('📊 Dashboard data received:', data);
-
-                // Update all dashboard metrics
-                document.getElementById('totalCollected').textContent = '$' + Number(data.total_cobrado || 0).toLocaleString();
-                document.getElementById('saldoCaja').textContent = '$' + Number(data.saldo_caja || 0).toLocaleString();
-                document.getElementById('creditosCount').textContent = '#' + (data.creditos_count || 0);
-                document.getElementById('creditosMonto').textContent = '$' + Number(data.creditos_monto || 0).toLocaleString();
-                document.getElementById('baseDiaria').textContent = '$' + Number(data.base_diaria || 0).toLocaleString();
-                document.getElementById('gastos').textContent = '$' + Number(data.gastos || 0).toLocaleString();
-                document.getElementById('clientesCount').textContent = '#' + (data.clientes_count || 0);
-                document.getElementById('syncedPayments').textContent = data.pagos_sincronizados || 0;
+                
+                // FALLBACK: Calculate from cache (offline or RPC failed)
+                console.log('📂 Calculating stats from cache...');
+                const cachedPayments = await loadFromCache('pagos_cache');
+                const cachedPrestamos = await loadFromCache('prestamos_detalle_cache');
+                
+                // Pagos de hoy
+                const todayPayments = (cachedPayments || []).filter(p => p.fecha_pago === today);
+                const totalCobrado = todayPayments.reduce((sum, p) => sum + Number(p.monto || 0), 0);
+                const clientesUnicos = new Set(todayPayments.map(p => p.cliente_id)).size;
+                
+                // Créditos creados hoy
+                const creditosHoy = (cachedPrestamos || []).filter(p => p.fecha_inicio === today);
+                const creditosCount = creditosHoy.length;
+                const creditosMonto = creditosHoy.reduce((sum, p) => sum + Number(p.monto_prestado || 0), 0);
+                
+                // Base y gastos (por ahora 0 si no hay datos)
+                const baseDiaria = 0;
+                const gastos = 0;
+                const saldoCaja = baseDiaria - creditosMonto - gastos + totalCobrado;
+                
+                console.log('📊 Stats calculadas:', {
+                    totalCobrado,
+                    creditosCount,
+                    creditosMonto,
+                    saldoCaja,
+                    clientesUnicos
+                });
+                
+                document.getElementById('totalCollected').textContent = '$' + totalCobrado.toLocaleString();
+                document.getElementById('saldoCaja').textContent = '$' + saldoCaja.toLocaleString();
+                document.getElementById('creditosCount').textContent = '#' + creditosCount;
+                document.getElementById('creditosMonto').textContent = '$' + creditosMonto.toLocaleString();
+                document.getElementById('baseDiaria').textContent = '$' + baseDiaria.toLocaleString();
+                document.getElementById('gastos').textContent = '$' + gastos.toLocaleString();
+                document.getElementById('clientesCount').textContent = '#' + clientesUnicos;
+                document.getElementById('syncedPayments').textContent = todayPayments.length;
                 document.getElementById('pendingPayments').textContent = APP.offlineData.payments.length;
+                
             } catch (error) {
                 console.error('❌ Error loading dashboard stats:', error);
                 // Show zeros on error
