@@ -2002,10 +2002,10 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                 // 🆕 Obtener resumen de préstamos con saldo y mora total desde vista materializada
                 const { data: prestamosResumen, error: resumenErr } = await APP.supabase
                     .from('v_saldo_total_prestamo')
-                    .select('prestamo_id, cliente_id, cliente_nombre, cliente_cedula, cuota_diaria, total_dias, monto_prestado, saldo_capital_pendiente, mora_acumulada_total, saldo_total_con_mora')
+                    .select('prestamo_id, cliente_id, cuota_diaria, total_dias, monto_prestado, saldo_capital, mora_total, saldo_total_con_mora')
                     .eq('panel_id', APP.collectorContext.panelId)
                     .eq('cobrador_id', APP.collectorContext.collectorId)
-                    .in('prestamo_estado', ['activo', 'vencido']);
+                    .in('estado_prestamo', ['activo', 'vencido']);
                 
                 if (resumenErr) {
                     console.error('❌ Error cargando resumen préstamos:', resumenErr);
@@ -2014,6 +2014,14 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                 
                 console.log(`📊 Préstamos con saldo: ${prestamosResumen?.length || 0}`);
                 
+                // Obtener datos de clientes
+                const { data: clientes } = await APP.supabase
+                    .from('clients')
+                    .select('id, nombre, cedula, telefono')
+                    .eq('panel_id', APP.collectorContext.panelId);
+                
+                const clientesMap = new Map((clientes || []).map(c => [c.id, c]));
+                
                 // Crear mapa de préstamos con su saldo total y mora total
                 const prestamosMap = new Map((prestamosResumen || []).map(p => [p.prestamo_id, {
                     id: p.prestamo_id,
@@ -2021,14 +2029,10 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                     cuota_diaria: p.cuota_diaria,
                     total_dias: p.total_dias,
                     monto_prestado: p.monto_prestado,
-                    saldo_capital_total: p.saldo_capital_pendiente,
-                    mora_total: p.mora_acumulada_total,
+                    saldo_capital_total: p.saldo_capital,
+                    mora_total: p.mora_total,
                     saldo_con_mora_total: p.saldo_total_con_mora,
-                    clients: {
-                        id: p.cliente_id,
-                        nombre: p.cliente_nombre,
-                        cedula: p.cliente_cedula
-                    }
+                    clients: clientesMap.get(p.cliente_id) || null
                 }]));
                 
                 // 🆕 Obtener CUOTAS individuales pendientes para hoy (con mora)
