@@ -1233,40 +1233,57 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                         throw new Error('Vista no disponible o sin datos');
                     }
                 } catch (err) {
-                    // FALLBACK: Calcular manualmente desde cuotas
-                    addDebugLog(`⚠️ Vista no disponible - calculando manualmente`);
+                    // FALLBACK: Calcular manualmente desde cuotas (PERO SIN BLOQUEAR)
+                    addDebugLog(`⚠️ Vista no disponible - calculando manualmente (${prestamos?.length || 0} préstamos)`);
                     
-                    if (prestamos?.length) {
-                        for (const prestamo of prestamos) {
-                            const { data: cuotas } = await APP.supabase
-                                .from('cuotas')
-                                .select('saldo_pendiente, mora_acumulada, estado')
-                                .eq('prestamo_id', prestamo.id);
-                            
-                            const cuotasPendientes = cuotas?.filter(c => c.estado !== 'pagada') || [];
-                            const saldo_capital = cuotasPendientes.reduce((sum, c) => sum + Number(c.saldo_pendiente || 0), 0);
-                            const mora_total = cuotasPendientes.reduce((sum, c) => sum + Number(c.mora_acumulada || 0), 0);
-                            
-                            saldosMora.push({
-                                prestamo_id: prestamo.id,
-                                cliente_id: prestamo.cliente_id,
-                                cuota_diaria: prestamo.cuota_diaria,
-                                total_dias: prestamo.total_dias,
-                                monto_prestado: prestamo.monto_prestado,
-                                saldo_capital,
-                                mora_total,
-                                saldo_total_con_mora: saldo_capital + mora_total
+                    try {
+                        if (prestamos?.length) {
+                            // Calcular en paralelo en lugar de secuencial
+                            const promises = prestamos.map(async (prestamo) => {
+                                try {
+                                    const { data: cuotas } = await APP.supabase
+                                        .from('cuotas')
+                                        .select('saldo_pendiente, mora_acumulada, estado')
+                                        .eq('prestamo_id', prestamo.id);
+                                    
+                                    const cuotasPendientes = cuotas?.filter(c => c.estado !== 'pagada') || [];
+                                    const saldo_capital = cuotasPendientes.reduce((sum, c) => sum + Number(c.saldo_pendiente || 0), 0);
+                                    const mora_total = cuotasPendientes.reduce((sum, c) => sum + Number(c.mora_acumulada || 0), 0);
+                                    
+                                    return {
+                                        prestamo_id: prestamo.id,
+                                        cliente_id: prestamo.cliente_id,
+                                        cuota_diaria: prestamo.cuota_diaria,
+                                        total_dias: prestamo.total_dias,
+                                        monto_prestado: prestamo.monto_prestado,
+                                        saldo_capital,
+                                        mora_total,
+                                        saldo_total_con_mora: saldo_capital + mora_total
+                                    };
+                                } catch (e) {
+                                    console.error(`Error calculando préstamo ${prestamo.id}:`, e);
+                                    return null;
+                                }
                             });
+                            
+                            saldosMora = (await Promise.all(promises)).filter(s => s !== null);
+                            addDebugLog(`🔄 Calculado: ${saldosMora.length} préstamos`);
                         }
-                        addDebugLog(`🔄 Calculado: ${saldosMora.length} préstamos`);
+                    } catch (calcError) {
+                        addDebugLog(`❌ Error calculando saldos: ${calcError.message}`);
                     }
                 }
                 
-                if (saldosMora?.length) {
-                    await saveToCache('saldos_mora_cache', saldosMora);
-                    addDebugLog(`✅ ${saldosMora.length} saldos cacheados`);
-                } else {
-                    addDebugLog(`⚠️ No hay saldos para cachear`);
+                // Siempre guardar lo que tengamos (aunque sea vacío)
+                try {
+                    if (saldosMora?.length) {
+                        await saveToCache('saldos_mora_cache', saldosMora);
+                        addDebugLog(`✅ ${saldosMora.length} saldos cacheados`);
+                    } else {
+                        addDebugLog(`⚠️ No hay saldos para cachear (continuando...)`);
+                    }
+                } catch (saveError) {
+                    addDebugLog(`❌ Error guardando cache: ${saveError.message}`);
                 }
                 
                 // 4. 🆕 Cache CUOTAS individuales pendientes (no préstamos agrupados)
