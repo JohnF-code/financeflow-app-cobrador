@@ -33,7 +33,7 @@ const ConnectionManager = {
         this.urls.supabase = `${supabaseUrl}/rest/v1/`;
         
         // Configurar listeners de red
-        this.escucharReconexion(onReconnect);
+        this.escucharReconexión(onReconnect);
         
         console.log('🌐 ConnectionManager inicializado');
     },
