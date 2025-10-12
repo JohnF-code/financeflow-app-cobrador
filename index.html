@@ -1211,8 +1211,30 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                     }
                 }
                 
-                // 3. 🆕 Cache CUOTAS individuales pendientes (no préstamos agrupados)
-                updateBanner('📅', 'Descargando cuotas pendientes...', 'Paso 3 de 5 ⏳');
+                // 3. 🆕 Cache SALDO Y MORA TOTAL desde vista materializada
+                updateBanner('💰', 'Descargando saldos y mora...', 'Paso 3 de 6 ⏳');
+                await new Promise(resolve => setTimeout(resolve, 800));
+                
+                const { data: saldosMora, error: saldosError } = await APP.supabase
+                    .from('v_saldo_total_prestamo')
+                    .select('prestamo_id, cliente_id, cuota_diaria, total_dias, monto_prestado, saldo_capital, mora_total, saldo_total_con_mora')
+                    .eq('panel_id', APP.collectorContext.panelId)
+                    .eq('cobrador_id', APP.collectorContext.collectorId)
+                    .in('estado_prestamo', ['activo', 'vencido']);
+                
+                if (saldosError) {
+                    addDebugLog(`❌ Error saldos: ${saldosError.message}`);
+                } else {
+                    addDebugLog(`📥 Recibido: ${saldosMora?.length || 0} préstamos con saldo/mora`);
+                    
+                    if (saldosMora?.length) {
+                        await saveToCache('saldos_mora_cache', saldosMora);
+                        addDebugLog(`✅ Saldos y mora cacheados`);
+                    }
+                }
+                
+                // 4. 🆕 Cache CUOTAS individuales pendientes (no préstamos agrupados)
+                updateBanner('📅', 'Descargando cuotas pendientes...', 'Paso 4 de 6 ⏳');
                 await new Promise(resolve => setTimeout(resolve, 800));
                 
                 const today = new Date().toISOString().split('T')[0];
@@ -1231,12 +1253,14 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                 } else {
                     addDebugLog(`📥 Recibido: ${cuotasPendientes?.length || 0} cuotas pendientes`);
                     
-                    if (cuotasPendientes?.length && prestamos?.length) {
-                        // Enriquecer cuotas con datos de préstamos y clientes
+                    if (cuotasPendientes?.length && prestamos?.length && saldosMora?.length) {
+                        // Crear mapas
                         const prestamosMap = new Map(prestamos.map(p => [p.id, p]));
+                        const saldosMoraMap = new Map(saldosMora.map(s => [s.prestamo_id, s]));
                         
                         const cuotasEnriquecidas = cuotasPendientes.map(cuota => {
                             const prestamo = prestamosMap.get(cuota.prestamo_id);
+                            const saldoMora = saldosMoraMap.get(cuota.prestamo_id);
                             const todayDate = new Date(today);
                             const dueDate = new Date(cuota.fecha_vencimiento);
                             const diffTime = todayDate - dueDate;
@@ -1245,6 +1269,10 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                             return {
                                 ...cuota,
                                 daysOverdue,
+                                // 🆕 Agregar saldo y mora TOTALES del préstamo
+                                saldo_total_prestamo: saldoMora?.saldo_capital || 0,
+                                mora_total_prestamo: saldoMora?.mora_total || 0,
+                                saldo_con_mora_prestamo: saldoMora?.saldo_total_con_mora || 0,
                                 prestamos: prestamo ? {
                                     id: prestamo.id,
                                     cliente_id: prestamo.cliente_id,
@@ -1258,7 +1286,7 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                             };
                         });
                         
-                        addDebugLog(`✅ ${cuotasEnriquecidas.length} cuotas enriquecidas con datos de clientes`);
+                        addDebugLog(`✅ ${cuotasEnriquecidas.length} cuotas enriquecidas con saldo/mora total`);
                         addDebugLog(`💾 Guardando en cuotas_cache...`);
                         await saveToCache('cuotas_cache', cuotasEnriquecidas);
                         addDebugLog(`✅ Cache "Cuotas Hoy" listo`);
@@ -1267,7 +1295,7 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                         const verificar = await loadFromCache('cuotas_cache');
                         addDebugLog(`🔍 Verificación: ${verificar?.length || 0} cuotas en cache`);
                         if (verificar?.length > 0 && verificar[0].prestamos?.clients) {
-                            addDebugLog(`✅ Estructura OK: Cuota #${verificar[0].numero_cuota} - ${verificar[0].prestamos.clients.nombre}`);
+                            addDebugLog(`✅ Estructura OK: Cuota #${verificar[0].numero_cuota} - ${verificar[0].prestamos.clients.nombre} - Saldo: $${verificar[0].saldo_total_prestamo}`);
                         } else {
                             addDebugLog(`⚠️ Estructura incorrecta en cache`);
                         }
@@ -1276,15 +1304,15 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                     }
                 }
                 
-                // 4. Cache settings
-                updateBanner('⚙️', 'Descargando configuración...', 'Paso 4 de 5 ⏳');
+                // 5. Cache settings
+                updateBanner('⚙️', 'Descargando configuración...', 'Paso 5 de 6 ⏳');
                 await new Promise(resolve => setTimeout(resolve, 800));
                 await cacheSettings();
                 
                 addDebugLog(`⚙️ Settings cacheados`);
                 
-                // 5. Cache pagos recientes (sin relaciones anidadas)
-                updateBanner('💳', 'Descargando pagos recientes...', 'Paso 5 de 5 ⏳');
+                // 6. Cache pagos recientes (sin relaciones anidadas)
+                updateBanner('💳', 'Descargando pagos recientes...', 'Paso 6 de 6 ⏳');
                 await new Promise(resolve => setTimeout(resolve, 800));
                 const thirtyDaysAgo = new Date();
                 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -1348,7 +1376,7 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
 
                 // Mostrar confirmación de éxito
                 banner.classList.add('ready');
-                updateBanner('✅', '¡Listo para trabajar offline!', `${clientes?.length || 0} clientes, ${loansWithDetails?.length || 0} préstamos${storageText}`);
+                updateBanner('✅', '¡Listo para trabajar offline!', `${clientes?.length || 0} clientes, ${cuotasPendientes?.length || 0} cuotas${storageText}`);
                 
                 // Sincronizar datos pendientes
                 await syncOfflineData();
