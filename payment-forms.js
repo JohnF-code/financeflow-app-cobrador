@@ -27,22 +27,33 @@ async function showRegisterPaymentForm(loanId) {
             console.log('📵 Modo offline - cargando préstamo del cache...');
             const cachedLoans = await loadFromCache('prestamos_detalle_cache');
             const cachedSaldos = await loadFromCache('saldos_mora_cache');
+            const cachedCuotas = await loadFromCache('cuotas_cache');
+            
+            console.log(`🔍 Debug - Cache disponible:`, {
+                prestamos: cachedLoans?.length || 0,
+                saldos: cachedSaldos?.length || 0,
+                cuotas: cachedCuotas?.length || 0
+            });
+            
             const cachedLoan = cachedLoans?.find(l => l.id === loanId);
             const saldoMora = cachedSaldos?.find(s => s.prestamo_id === loanId);
+            const cuotaDelPrestamo = cachedCuotas?.find(c => c.prestamo_id === loanId);
+            
+            console.log(`🔍 Para préstamo ${loanId}:`, {
+                loan: cachedLoan ? 'encontrado' : 'NO encontrado',
+                saldo: saldoMora ? 'encontrado' : 'NO encontrado',
+                cuota: cuotaDelPrestamo ? 'encontrada' : 'NO encontrada'
+            });
             
             if (!cachedLoan) {
                 console.warn(`⚠️ Préstamo ${loanId} no está en cache - modo emergencia`);
-                console.log('📋 Préstamos en cache:', cachedLoans?.map(l => ({ id: l.id, cliente: l.clients?.nombre })));
-                
-                // 🆕 MODO EMERGENCIA: Permitir registro sin cache
                 loan = {
                     id: loanId,
-                    cliente_id: null, // Se inferirá del préstamo
+                    cliente_id: null,
                     cuota_diaria: 0,
                     clients: { nombre: 'Cliente (datos limitados)' }
                 };
-                totalPending = 0; // Usuario ingresará manualmente
-                
+                totalPending = 0;
                 console.log('🚨 Usando modo emergencia sin cache');
             } else {
                 loan = {
@@ -51,10 +62,18 @@ async function showRegisterPaymentForm(loanId) {
                     cuota_diaria: cachedLoan.cuota_diaria,
                     clients: cachedLoan.clients
                 };
-                // 🆕 Usar saldo + mora desde cache
-                totalPending = saldoMora?.saldo_total_con_mora || 0;
                 
-                console.log(`📂 Préstamo cargado del cache - Saldo: $${totalPending} (incluye mora)`);
+                // 🆕 Intentar múltiples fuentes para el saldo
+                if (saldoMora?.saldo_total_con_mora) {
+                    totalPending = saldoMora.saldo_total_con_mora;
+                    console.log(`✅ Saldo desde saldos_mora_cache: $${totalPending}`);
+                } else if (cuotaDelPrestamo?.saldo_con_mora_prestamo) {
+                    totalPending = cuotaDelPrestamo.saldo_con_mora_prestamo;
+                    console.log(`✅ Saldo desde cuotas_cache: $${totalPending}`);
+                } else {
+                    totalPending = 0;
+                    console.warn(`⚠️ No se encontró saldo en cache - usando 0`);
+                }
             }
         }
         
@@ -139,8 +158,23 @@ async function showCollectCreditForm(loanId) {
             console.log('📵 Modo offline - cargando préstamo del cache...');
             const cachedLoans = await loadFromCache('prestamos_detalle_cache');
             const cachedSaldos = await loadFromCache('saldos_mora_cache');
+            const cachedCuotas = await loadFromCache('cuotas_cache');
+            
+            console.log(`🔍 Debug - Cache disponible:`, {
+                prestamos: cachedLoans?.length || 0,
+                saldos: cachedSaldos?.length || 0,
+                cuotas: cachedCuotas?.length || 0
+            });
+            
             const cachedLoan = cachedLoans?.find(l => l.id === loanId);
             const saldoMora = cachedSaldos?.find(s => s.prestamo_id === loanId);
+            const cuotaDelPrestamo = cachedCuotas?.find(c => c.prestamo_id === loanId);
+            
+            console.log(`🔍 Para préstamo ${loanId}:`, {
+                loan: cachedLoan ? 'encontrado' : 'NO encontrado',
+                saldo: saldoMora ? `$${saldoMora.saldo_total_con_mora}` : 'NO encontrado',
+                cuota: cuotaDelPrestamo ? `$${cuotaDelPrestamo.saldo_con_mora_prestamo}` : 'NO encontrada'
+            });
             
             if (!cachedLoan) {
                 showError('⚠️ No hay datos de este préstamo en cache. Conecta a internet y recarga los datos primero.');
@@ -154,8 +188,18 @@ async function showCollectCreditForm(loanId) {
                 cuota_diaria: cachedLoan.cuota_diaria,
                 clients: cachedLoan.clients
             };
-            // 🆕 Usar saldo + mora desde cache
-            saldoDescontar = saldoMora?.saldo_total_con_mora || 0;
+            
+            // 🆕 Intentar múltiples fuentes para el saldo
+            if (saldoMora?.saldo_total_con_mora) {
+                saldoDescontar = saldoMora.saldo_total_con_mora;
+                console.log(`✅ Saldo desde saldos_mora_cache: $${saldoDescontar}`);
+            } else if (cuotaDelPrestamo?.saldo_con_mora_prestamo) {
+                saldoDescontar = cuotaDelPrestamo.saldo_con_mora_prestamo;
+                console.log(`✅ Saldo desde cuotas_cache: $${saldoDescontar}`);
+            } else {
+                saldoDescontar = 0;
+                console.warn(`⚠️ No se encontró saldo en cache - usando 0`);
+            }
             
             // Obtener settings del cache
             const cachedSettings = await loadFromCache('panel_settings_cache');
@@ -165,8 +209,6 @@ async function showCollectCreditForm(loanId) {
                 showError('⚠️ No hay configuración en cache. Conecta a internet y recarga los datos primero.');
                 return;
             }
-            
-            console.log(`📂 Préstamo cargado del cache - Saldo: $${saldoDescontar} (incluye mora)`);
         }
         
         const minMonto = Number(settings?.valor_minimo_prestamo || 50000);
