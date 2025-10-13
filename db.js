@@ -7,7 +7,7 @@
  */
 
 const DB_NAME = 'smart_cobros_db';
-const DB_VERSION = 2; // 🆕 v2: Agregar prestamos_detalle_cache y panel_settings_cache
+const DB_VERSION = 3; // 🆕 v3: Agregar auth_cache y saldos_mora_cache
 
 // Estado global de la base de datos
 const DB = {
@@ -187,6 +187,22 @@ async function initDB() {
                 const panelSettingsStore = db.createObjectStore('panel_settings_cache', { keyPath: 'panel_id' });
                 panelSettingsStore.createIndex('ultima_actualizacion', 'ultima_actualizacion', { unique: false });
                 console.log('  ✅ panel_settings_cache creado');
+            }
+
+            // 🆕 Cache de autenticación (para login offline)
+            if (!db.objectStoreNames.contains('auth_cache')) {
+                const authStore = db.createObjectStore('auth_cache', { keyPath: 'id' });
+                authStore.createIndex('email', 'email', { unique: false });
+                authStore.createIndex('last_login', 'last_login', { unique: false });
+                console.log('  ✅ auth_cache creado');
+            }
+
+            // 🆕 Cache de saldos con mora (vista materializada)
+            if (!db.objectStoreNames.contains('saldos_mora_cache')) {
+                const saldosMoraStore = db.createObjectStore('saldos_mora_cache', { keyPath: 'prestamo_id' });
+                saldosMoraStore.createIndex('panel_id', 'panel_id', { unique: false });
+                saldosMoraStore.createIndex('cobrador_id', 'cobrador_id', { unique: false });
+                console.log('  ✅ saldos_mora_cache creado');
             }
 
             // ===========================

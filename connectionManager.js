@@ -51,7 +51,7 @@ const ConnectionManager = {
         try {
             const startTime = Date.now();
             const response = await fetch(url, {
-                method: 'HEAD',
+                method: 'GET', // Cambiar a GET (HEAD no funciona en Vercel)
                 mode: 'no-cors', // Evita CORS en ping
                 cache: 'no-store',
                 signal: controller.signal
