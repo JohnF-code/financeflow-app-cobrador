@@ -104,16 +104,26 @@ function closePaymentModal() {
 // Show collect credit form (renovar crédito)
 async function showCollectCreditForm(loanId) {
     try {
-        let loan, saldoDescontar, settings;
+        let loan, saldoDescontar, settings, clientScore, requiredScore;
         
         // 🆕 Si está online, obtener de Supabase
         if (APP.isOnline && navigator.onLine) {
             const { data: loanData } = await APP.supabase
                 .from('prestamos')
-                .select('id, cliente_id, monto_prestado, cuota_diaria, clients:cliente_id(nombre)')
+                .select('id, cliente_id, monto_prestado, cuota_diaria, clients:cliente_id(nombre, score, status)')
                 .eq('id', loanId)
                 .single();
             loan = loanData;
+            
+            // ✅ Validar cliente bloqueado (ONLINE)
+            clientScore = loan?.clients?.score || 0;
+            const { data: settingsBloqueo } = await APP.supabase
+                .from('settings')
+                .select('value')
+                .eq('panel_id', APP.collectorContext.panelId)
+                .eq('key', 'bloqueo_score_minimo')
+                .maybeSingle();
+            requiredScore = settingsBloqueo?.value ? Number(settingsBloqueo.value) : 550;
             
             const { data: cuotas } = await APP.supabase
                 .from('cuotas')
@@ -148,16 +158,30 @@ async function showCollectCreditForm(loanId) {
             };
             saldoDescontar = cachedLoan.saldo_total_pendiente;
             
-            // Obtener settings del cache
+            // ✅ Validar cliente bloqueado (OFFLINE - con advertencia)
+            clientScore = cachedLoan.clients?.score || 0;
             const cachedSettings = await loadFromCache('panel_settings_cache');
             settings = cachedSettings && cachedSettings.length > 0 ? cachedSettings[0] : null;
+            requiredScore = settings?.bloqueo_score_minimo || 550;
             
             if (!settings) {
                 showError('⚠️ No hay configuración en cache. Conecta a internet y recarga los datos primero.');
                 return;
             }
             
-            console.log(`📂 Préstamo cargado del cache - Saldo: $${saldoDescontar}`);
+            console.log(`📂 Préstamo cargado del cache - Saldo: $${saldoDescontar}, Score: ${clientScore}`);
+        }
+        
+        // 🚫 VALIDACIÓN BLOQUEADO - Bloquear si score < requerido
+        if (clientScore < requiredScore) {
+            console.warn(`🚫 Cliente bloqueado - Score: ${clientScore}, Requerido: ${requiredScore}`);
+            showBlockedClientModal(
+                loan.clients?.nombre || 'Cliente',
+                clientScore,
+                requiredScore,
+                !APP.isOnline || !navigator.onLine // Advertencia si es offline
+            );
+            return;
         }
         
         const minMonto = Number(settings?.valor_minimo_prestamo || 50000);
@@ -783,8 +807,16 @@ function closeSuccessModal() {
 }
 
 // Show blocked client modal
-function showBlockedClientModal(clientName, currentScore, requiredScore) {
+function showBlockedClientModal(clientName, currentScore, requiredScore, isOffline = false) {
     const pointsNeeded = Math.max(0, requiredScore - currentScore);
+    
+    const offlineWarning = isOffline ? `
+        <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px;margin-bottom:12px;">
+            <p style="margin:0;font-size:12px;color:#92400e;">
+                ⚠️ <strong>Modo Offline:</strong> Score basado en último dato sincronizado.
+            </p>
+        </div>
+    ` : '';
     
     const modalHTML = `
         <div id="blockedClientModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:10001;padding:20px;">
@@ -795,6 +827,8 @@ function showBlockedClientModal(clientName, currentScore, requiredScore) {
                     </div>
                     <h3 style="margin:0 0 8px;color:#333;font-size:20px;">Cliente Bloqueado</h3>
                 </div>
+                
+                ${offlineWarning}
                 
                 <p style="margin:0 0 15px;color:#666;font-size:14px;text-align:center;">
                     <strong>${clientName}</strong> no puede obtener un nuevo crédito en este momento.
