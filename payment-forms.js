@@ -61,7 +61,13 @@ async function showRegisterPaymentForm(loanId) {
                     cuota_diaria: cachedLoan.cuota_diaria,
                     clients: cachedLoan.clients
                 };
-                totalPending = cachedLoan.saldo_total_pendiente;
+                
+                // 🔧 Calcular saldo total desde cuotas cacheadas
+                const cachedQuotas = await loadFromCache('cuotas_cache');
+                const quotasForLoan = cachedQuotas?.filter(q => q.prestamo_id === loanId && q.estado !== 'pagada') || [];
+                totalPending = quotasForLoan.reduce((sum, q) => sum + Number(q.saldo_pendiente || 0), 0);
+                
+                console.log(`📊 Cuotas pendientes encontradas: ${quotasForLoan.length}, Saldo calculado: $${totalPending}`);
                 
                 // Obtener score del cache
                 clientScore = cachedLoan.clients?.score || 0;
@@ -197,7 +203,11 @@ async function showCollectCreditForm(loanId) {
                 cuota_diaria: cachedLoan.cuota_diaria,
                 clients: cachedLoan.clients
             };
-            saldoDescontar = cachedLoan.saldo_total_pendiente;
+            
+            // 🔧 Calcular saldo total desde cuotas cacheadas
+            const cachedQuotas = await loadFromCache('cuotas_cache');
+            const quotasForLoan = cachedQuotas?.filter(q => q.prestamo_id === loanId && q.estado !== 'pagada') || [];
+            saldoDescontar = quotasForLoan.reduce((sum, q) => sum + Number(q.saldo_pendiente || 0), 0);
             
             // ✅ Validar cliente bloqueado (OFFLINE - con advertencia)
             clientScore = cachedLoan.clients?.score || 0;
@@ -448,23 +458,24 @@ async function registerPaymentForLoan(loanId, clientId, amount) {
                 // El monto y el préstamo se guardarán para sincronizar después
                 console.log('🚨 Modo emergencia activado - guardando pago sin validación');
             } else {
+                // 🔧 Calcular saldo desde cuotas cacheadas
+                const cachedQuotasForValidation = await loadFromCache('cuotas_cache');
+                const quotasForLoan = cachedQuotasForValidation?.filter(q => q.prestamo_id === loanId && q.estado !== 'pagada') || [];
+                const saldoTotal = quotasForLoan.reduce((sum, q) => sum + Number(q.saldo_pendiente || 0), 0);
+                
                 // Validar que el monto no exceda el saldo
-                if (amount > cachedLoan.saldo_total_pendiente) {
-                    showError(`⚠️ El monto ($${amount.toLocaleString()}) excede el saldo pendiente ($${cachedLoan.saldo_total_pendiente.toLocaleString()})`);
+                if (amount > saldoTotal) {
+                    showError(`⚠️ El monto ($${amount.toLocaleString()}) excede el saldo pendiente ($${saldoTotal.toLocaleString()})`);
                     btn.disabled = false;
                     btn.textContent = 'Registrar';
                     return;
                 }
                 
                 // Agregar metadata del cache
-                paymentData.cache_saldo_antes = cachedLoan.saldo_total_pendiente;
-                paymentData.cache_timestamp = cachedLoan.ultima_actualizacion;
+                paymentData.cache_saldo_antes = saldoTotal;
+                paymentData.cache_timestamp = Date.now();
                 
-                // 🆕 Actualizar saldo en cache (actualización optimista)
-                cachedLoan.saldo_total_pendiente -= amount;
-                cachedLoan.ultima_actualizacion = Date.now();
-                await saveToCache('prestamos_detalle_cache', cachedLoans);
-                console.log(`💾 Saldo actualizado en cache: $${cachedLoan.saldo_total_pendiente}`);
+                console.log(`✅ Validación offline OK - Saldo: $${saldoTotal}, Monto pago: $${amount}`);
             }
             
             // Save offline using IndexedDB
@@ -671,9 +682,14 @@ async function collectCreditWithRenewal(oldLoanId, clientId, saldoDescontar, mon
                 return;
             }
             
+            // 🔧 Calcular saldo desde cuotas cacheadas
+            const cachedQuotasForRecogida = await loadFromCache('cuotas_cache');
+            const quotasForLoan = cachedQuotasForRecogida?.filter(q => q.prestamo_id === oldLoanId && q.estado !== 'pagada') || [];
+            const saldoCalculado = quotasForLoan.reduce((sum, q) => sum + Number(q.saldo_pendiente || 0), 0);
+            
             // Validar que el saldo coincida
-            if (Math.abs(saldoDescontar - cachedLoan.saldo_total_pendiente) > 1) {
-                console.warn(`⚠️ Saldo desajustado: Form=${saldoDescontar}, Cache=${cachedLoan.saldo_total_pendiente}`);
+            if (Math.abs(saldoDescontar - saldoCalculado) > 1) {
+                console.warn(`⚠️ Saldo desajustado: Form=${saldoDescontar}, Cache=${saldoCalculado}`);
             }
             
             // Save offline - using IndexedDB store 'offline_recogidas'
@@ -696,24 +712,16 @@ async function collectCreditWithRenewal(oldLoanId, clientId, saldoDescontar, mon
                     fecha_inicio: getLocalToday()
                 },
                 // 🆕 Metadata del cache para referencia
-                cache_saldo_antes: cachedLoan.saldo_total_pendiente,
-                cache_timestamp: cachedLoan.ultima_actualizacion,
+                cache_saldo_antes: saldoCalculado,
+                cache_timestamp: Date.now(),
                 idempotency_key: idempotencyKey
             };
             
             const temp_id = await saveOffline('offline_recogidas', recogidaData);
             console.log('✅ Recogida guardada offline:', temp_id);
             
-            // 🆕 Actualizar cache optimísticamente (marcar préstamo antiguo como recogido)
-            // Esto mejora la UX mostrando cambios inmediatos aunque esté offline
-            const indexToUpdate = cachedLoans.findIndex(l => l.id === oldLoanId);
-            if (indexToUpdate !== -1) {
-                cachedLoans[indexToUpdate].estado = 'renovado_offline'; // Estado temporal
-                cachedLoans[indexToUpdate].saldo_total_pendiente = 0;
-                cachedLoans[indexToUpdate].ultima_actualizacion = Date.now();
-                await saveToCache('prestamos_detalle_cache', cachedLoans);
-                console.log(`💾 Cache actualizado - Préstamo ${oldLoanId} marcado como renovado`);
-            }
+            // 🆕 Ya no actualizamos cache de préstamos aquí porque usamos cuotas
+            console.log(`📊 Saldo procesado: $${saldoDescontar}`);
             
             await updateConnectionStatus();
             
