@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cobrador App - v10.6 Cliente Bloqueado Fix</title>
-    <!-- Cache Buster: v10.6.<?php echo time(); ?> -->
+    <title>App Cobrador v11.0</title>
+    <!-- Cache Buster: v11.0 - Force SW Update -->
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js?v=10.6"></script>
-    <script src="crypto.js?v=10.6"></script>
-    <script src="sync.js?v=10.6"></script>
-    <script src="iphone-debug.js?v=10.6"></script>
+    <script src="db.js?v=11.0"></script>
+    <script src="crypto.js?v=11.0"></script>
+    <script src="sync.js?v=11.0"></script>
+    <script src="iphone-debug.js?v=11.0"></script>
     <style display="none">
         * {
             margin: 0;
@@ -682,9 +682,9 @@
 
     <!-- Scripts -->
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <script src="config.js?v=10.6"></script>
-    <script src="search-pagination.js?v=10.6"></script>
-    <script src="payment-forms.js?v=10.6"></script>
+    <script src="config.js?v=11.0"></script>
+    <script src="search-pagination.js?v=11.0"></script>
+    <script src="payment-forms.js?v=11.0"></script>
     <script>
         // Global app state
         const APP = {
@@ -3734,15 +3734,46 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
             // Update initial status
             updateConnectionStatus();
             
-            // Enable Service Worker for offline caching
+            // 🔄 Force Service Worker Update v11.0
             if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('sw.js')
-                    .then(registration => {
-                        console.log('✅ Service Worker registered:', registration);
-                    })
-                    .catch(error => {
-                        console.warn('⚠️ Service Worker registration failed:', error);
+                // Desregistrar service workers antiguos
+                navigator.serviceWorker.getRegistrations().then(registrations => {
+                    registrations.forEach(registration => {
+                        registration.unregister().then(success => {
+                            if (success) console.log('🗑️ Service Worker antiguo desinstalado');
+                        });
                     });
+                });
+                
+                // Limpiar todos los caches
+                caches.keys().then(cacheNames => {
+                    return Promise.all(
+                        cacheNames.map(name => {
+                            console.log('🗑️ Eliminando cache:', name);
+                            return caches.delete(name);
+                        })
+                    );
+                }).then(() => {
+                    console.log('✅ Todos los caches eliminados');
+                    
+                    // Registrar nuevo service worker
+                    return navigator.serviceWorker.register('sw.js');
+                }).then(registration => {
+                    console.log('✅ Service Worker v11.0 registrado:', registration.scope);
+                    
+                    // Forzar actualización inmediata
+                    if (registration.waiting) {
+                        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                    
+                    // Recargar después de actualizar
+                    setTimeout(() => {
+                        console.log('🔄 Recargando para aplicar cambios...');
+                        window.location.reload(true);
+                    }, 1000);
+                }).catch(error => {
+                    console.error('❌ Error con Service Worker:', error);
+                });
             }
         }
 
