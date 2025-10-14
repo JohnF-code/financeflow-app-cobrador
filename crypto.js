@@ -79,7 +79,20 @@ async function generateKey() {
             ['encrypt', 'decrypt']
         );
 
-        // Exportar y guardar en localStorage (para persistencia)
+        // ⚠️ SECURITY WARNING: Storing encryption keys in localStorage is NOT secure!
+        // This key can be:
+        // - Stolen via XSS attacks
+        // - Extracted by malware or browser extensions
+        // - Accessed via physical device access
+        // - Visible in DevTools
+        // 
+        // For production use, consider:
+        // 1. Storing keys in secure backend with per-session derivation
+        // 2. Using Web Crypto API non-exportable keys for session-only encryption
+        // 3. Implementing proper key rotation mechanisms
+        // 4. Using IndexedDB with encryption-at-rest where supported
+        
+        // Exportar y guardar en localStorage (para persistencia offline)
         const exported = await window.crypto.subtle.exportKey('raw', key);
         const keyArray = Array.from(new Uint8Array(exported));
         const keyString = keyArray.map(b => String.fromCharCode(b)).join('');
@@ -88,6 +101,7 @@ async function generateKey() {
         localStorage.setItem('crypto_key_raw', keyBase64);
         localStorage.setItem('crypto_key_generated', new Date().toISOString());
 
+        console.warn('⚠️ SECURITY: Encryption key stored in localStorage - not secure for production use');
         console.log('🔑 Clave AES-GCM generada y guardada');
         return key;
     } catch (error) {

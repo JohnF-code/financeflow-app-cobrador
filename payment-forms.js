@@ -5,7 +5,7 @@ async function showRegisterPaymentForm(loanId) {
     try {
         let loan, totalPending;
         
-        // 🆕 Si está online, obtener de Supabase con mora
+        // 🆕 Si está online, obtener de Supabase
         if (APP.isOnline && navigator.onLine) {
             const { data } = await APP.supabase
                 .from('prestamos')
@@ -14,46 +14,32 @@ async function showRegisterPaymentForm(loanId) {
                 .single();
             loan = data;
             
-            // Obtener saldo + mora desde vista materializada
-            const { data: saldoData } = await APP.supabase
-                .from('v_saldo_total_prestamo')
-                .select('saldo_total_con_mora')
+            const { data: cuotas } = await APP.supabase
+                .from('cuotas')
+                .select('saldo_pendiente')
                 .eq('prestamo_id', loanId)
-                .single();
+                .neq('estado', 'pagada');
             
-            totalPending = saldoData?.saldo_total_con_mora || 0;
+            totalPending = cuotas?.reduce((s, c) => s + Number(c.saldo_pendiente || 0), 0) || 0;
         } else {
             // 🆕 Si está offline, obtener del cache
             console.log('📵 Modo offline - cargando préstamo del cache...');
             const cachedLoans = await loadFromCache('prestamos_detalle_cache');
-            const cachedSaldos = await loadFromCache('saldos_mora_cache');
-            const cachedCuotas = await loadFromCache('cuotas_cache');
-            
-            console.log(`🔍 Debug - Cache disponible:`, {
-                prestamos: cachedLoans?.length || 0,
-                saldos: cachedSaldos?.length || 0,
-                cuotas: cachedCuotas?.length || 0
-            });
-            
             const cachedLoan = cachedLoans?.find(l => l.id === loanId);
-            const saldoMora = cachedSaldos?.find(s => s.prestamo_id === loanId);
-            const cuotaDelPrestamo = cachedCuotas?.find(c => c.prestamo_id === loanId);
-            
-            console.log(`🔍 Para préstamo ${loanId}:`, {
-                loan: cachedLoan ? 'encontrado' : 'NO encontrado',
-                saldo: saldoMora ? 'encontrado' : 'NO encontrado',
-                cuota: cuotaDelPrestamo ? 'encontrada' : 'NO encontrada'
-            });
             
             if (!cachedLoan) {
                 console.warn(`⚠️ Préstamo ${loanId} no está en cache - modo emergencia`);
+                console.log('📋 Préstamos en cache:', cachedLoans?.map(l => ({ id: l.id, cliente: l.clients?.nombre })));
+                
+                // 🆕 MODO EMERGENCIA: Permitir registro sin cache
                 loan = {
                     id: loanId,
-                    cliente_id: null,
+                    cliente_id: null, // Se inferirá del préstamo
                     cuota_diaria: 0,
                     clients: { nombre: 'Cliente (datos limitados)' }
                 };
-                totalPending = 0;
+                totalPending = 0; // Usuario ingresará manualmente
+                
                 console.log('🚨 Usando modo emergencia sin cache');
             } else {
                 loan = {
@@ -62,18 +48,9 @@ async function showRegisterPaymentForm(loanId) {
                     cuota_diaria: cachedLoan.cuota_diaria,
                     clients: cachedLoan.clients
                 };
+                totalPending = cachedLoan.saldo_total_pendiente;
                 
-                // 🆕 Intentar múltiples fuentes para el saldo
-                if (saldoMora?.saldo_total_con_mora) {
-                    totalPending = saldoMora.saldo_total_con_mora;
-                    console.log(`✅ Saldo desde saldos_mora_cache: $${totalPending}`);
-                } else if (cuotaDelPrestamo?.saldo_con_mora_prestamo) {
-                    totalPending = cuotaDelPrestamo.saldo_con_mora_prestamo;
-                    console.log(`✅ Saldo desde cuotas_cache: $${totalPending}`);
-                } else {
-                    totalPending = 0;
-                    console.warn(`⚠️ No se encontró saldo en cache - usando 0`);
-                }
+                console.log(`📂 Préstamo cargado del cache - Saldo: $${totalPending}`);
             }
         }
         
@@ -129,7 +106,7 @@ async function showCollectCreditForm(loanId) {
     try {
         let loan, saldoDescontar, settings;
         
-        // 🆕 Si está online, obtener de Supabase con mora
+        // 🆕 Si está online, obtener de Supabase
         if (APP.isOnline && navigator.onLine) {
             const { data: loanData } = await APP.supabase
                 .from('prestamos')
@@ -138,14 +115,12 @@ async function showCollectCreditForm(loanId) {
                 .single();
             loan = loanData;
             
-            // Obtener saldo + mora desde vista materializada
-            const { data: saldoData } = await APP.supabase
-                .from('v_saldo_total_prestamo')
-                .select('saldo_total_con_mora')
+            const { data: cuotas } = await APP.supabase
+                .from('cuotas')
+                .select('saldo_pendiente')
                 .eq('prestamo_id', loanId)
-                .single();
-            
-            saldoDescontar = saldoData?.saldo_total_con_mora || 0;
+                .neq('estado', 'pagada');
+            saldoDescontar = cuotas?.reduce((s, c) => s + Number(c.saldo_pendiente || 0), 0) || 0;
             
             const { data: settingsData } = await APP.supabase
                 .from('settings')
@@ -157,24 +132,7 @@ async function showCollectCreditForm(loanId) {
             // 🆕 Si está offline, obtener del cache
             console.log('📵 Modo offline - cargando préstamo del cache...');
             const cachedLoans = await loadFromCache('prestamos_detalle_cache');
-            const cachedSaldos = await loadFromCache('saldos_mora_cache');
-            const cachedCuotas = await loadFromCache('cuotas_cache');
-            
-            console.log(`🔍 Debug - Cache disponible:`, {
-                prestamos: cachedLoans?.length || 0,
-                saldos: cachedSaldos?.length || 0,
-                cuotas: cachedCuotas?.length || 0
-            });
-            
             const cachedLoan = cachedLoans?.find(l => l.id === loanId);
-            const saldoMora = cachedSaldos?.find(s => s.prestamo_id === loanId);
-            const cuotaDelPrestamo = cachedCuotas?.find(c => c.prestamo_id === loanId);
-            
-            console.log(`🔍 Para préstamo ${loanId}:`, {
-                loan: cachedLoan ? 'encontrado' : 'NO encontrado',
-                saldo: saldoMora ? `$${saldoMora.saldo_total_con_mora}` : 'NO encontrado',
-                cuota: cuotaDelPrestamo ? `$${cuotaDelPrestamo.saldo_con_mora_prestamo}` : 'NO encontrada'
-            });
             
             if (!cachedLoan) {
                 showError('⚠️ No hay datos de este préstamo en cache. Conecta a internet y recarga los datos primero.');
@@ -188,18 +146,7 @@ async function showCollectCreditForm(loanId) {
                 cuota_diaria: cachedLoan.cuota_diaria,
                 clients: cachedLoan.clients
             };
-            
-            // 🆕 Intentar múltiples fuentes para el saldo
-            if (saldoMora?.saldo_total_con_mora) {
-                saldoDescontar = saldoMora.saldo_total_con_mora;
-                console.log(`✅ Saldo desde saldos_mora_cache: $${saldoDescontar}`);
-            } else if (cuotaDelPrestamo?.saldo_con_mora_prestamo) {
-                saldoDescontar = cuotaDelPrestamo.saldo_con_mora_prestamo;
-                console.log(`✅ Saldo desde cuotas_cache: $${saldoDescontar}`);
-            } else {
-                saldoDescontar = 0;
-                console.warn(`⚠️ No se encontró saldo en cache - usando 0`);
-            }
+            saldoDescontar = cachedLoan.saldo_total_pendiente;
             
             // Obtener settings del cache
             const cachedSettings = await loadFromCache('panel_settings_cache');
@@ -209,6 +156,8 @@ async function showCollectCreditForm(loanId) {
                 showError('⚠️ No hay configuración en cache. Conecta a internet y recarga los datos primero.');
                 return;
             }
+            
+            console.log(`📂 Préstamo cargado del cache - Saldo: $${saldoDescontar}`);
         }
         
         const minMonto = Number(settings?.valor_minimo_prestamo || 50000);
@@ -515,6 +464,80 @@ async function collectCreditWithRenewal(oldLoanId, clientId, saldoDescontar, mon
     btn.textContent = 'Procesando...';
     
     try {
+        // 🔒 VALIDACIÓN CRÍTICA: Verificar estado del cliente ANTES de crear crédito
+        let clientData = null;
+        let scoreThreshold = 550; // Default threshold
+        
+        // Obtener threshold desde settings
+        try {
+            const scoreRules = settings?.score_rules || settings?.value?.score_rules;
+            if (typeof scoreRules === 'string') {
+                const parsed = JSON.parse(scoreRules);
+                scoreThreshold = parsed?.bloqueo_score_threshold_soft || 550;
+            } else if (scoreRules && typeof scoreRules === 'object') {
+                scoreThreshold = scoreRules?.bloqueo_score_threshold_soft || 550;
+            }
+        } catch (e) {
+            console.warn('No se pudo parsear score_rules, usando threshold por defecto:', e);
+        }
+        
+        // 🌐 ONLINE: Verificar estado del cliente en tiempo real desde Supabase
+        if (APP.isOnline && navigator.onLine) {
+            try {
+                const { data, error } = await APP.supabase
+                    .from('clients')
+                    .select('status, score, nombre')
+                    .eq('panel_id', APP.collectorContext.panelId)
+                    .eq('id', clientId)
+                    .single();
+                
+                if (error) throw error;
+                clientData = data;
+                
+                // BLOQUEO: Si el cliente está bloqueado, mostrar modal y detener
+                if (clientData?.status === 'blocked') {
+                    btn.disabled = false;
+                    btn.textContent = 'Crear Crédito';
+                    closeCollectModal();
+                    showBlockedClientModal(
+                        clientData.nombre || 'Cliente',
+                        clientData.score || 0,
+                        scoreThreshold
+                    );
+                    console.warn('⛔ Cliente bloqueado - Renovación cancelada');
+                    return;
+                }
+            } catch (error) {
+                console.error('❌ Error verificando estado del cliente:', error);
+                showError('No se pudo verificar el estado del cliente. Intenta nuevamente.');
+                btn.disabled = false;
+                btn.textContent = 'Crear Crédito';
+                return;
+            }
+        } else {
+            // 📵 OFFLINE: Verificar en cache local
+            console.log('📵 Modo offline - verificando cliente desde cache...');
+            try {
+                const cachedClients = await loadFromCache('clientes_cache');
+                const cachedClient = cachedClients?.find(c => c.id === clientId);
+                
+                if (cachedClient?.status === 'blocked') {
+                    btn.disabled = false;
+                    btn.textContent = 'Crear Crédito';
+                    closeCollectModal();
+                    showBlockedClientModal(
+                        cachedClient.nombre || 'Cliente',
+                        cachedClient.score || 0,
+                        scoreThreshold
+                    );
+                    console.warn('⛔ Cliente bloqueado (cache) - Renovación cancelada');
+                    return;
+                }
+            } catch (e) {
+                console.warn('⚠️ No se pudo verificar estado desde cache:', e);
+            }
+        }
+        
         // Generate idempotency key to prevent duplicates
         const timestamp = Date.now();
         const idempotencyKey = `${APP.collectorContext.collectorId}-${oldLoanId}-collect-${timestamp}`;
@@ -755,6 +778,67 @@ function closeSuccessModal() {
     if (modal) {
         const timerId = modal.dataset.timerId;
         if (timerId) clearInterval(Number(timerId));
+        modal.remove();
+    }
+}
+
+// Show blocked client modal
+function showBlockedClientModal(clientName, currentScore, requiredScore) {
+    const pointsNeeded = Math.max(0, requiredScore - currentScore);
+    
+    const modalHTML = `
+        <div id="blockedClientModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:10001;padding:20px;">
+            <div style="background:white;border-radius:15px;padding:25px;max-width:400px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,0.3);">
+                <div style="text-align:center;margin-bottom:20px;">
+                    <div style="width:60px;height:60px;background:#ef4444;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 15px;">
+                        <span style="color:white;font-size:32px;">🚫</span>
+                    </div>
+                    <h3 style="margin:0 0 8px;color:#333;font-size:20px;">Cliente Bloqueado</h3>
+                </div>
+                
+                <p style="margin:0 0 15px;color:#666;font-size:14px;text-align:center;">
+                    <strong>${clientName}</strong> no puede obtener un nuevo crédito en este momento.
+                </p>
+                
+                <!-- Scores -->
+                <div style="background:#fef2f2;border:1px solid #ef4444;border-radius:8px;padding:15px;margin-bottom:12px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <span style="font-size:13px;color:#666;">Puntaje actual:</span>
+                        <span style="font-size:18px;font-weight:bold;color:#ef4444;">${currentScore} puntos</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <span style="font-size:13px;color:#666;">Puntaje requerido:</span>
+                        <span style="font-size:18px;font-weight:bold;color:#059669;">${requiredScore} puntos</span>
+                    </div>
+                    <div style="border-top:1px solid #fecaca;padding-top:10px;margin-top:10px;">
+                        <div style="display:flex;align-items:center;gap:8px;color:#f59e0b;">
+                            <span style="font-size:20px;">📈</span>
+                            <span style="font-size:14px;font-weight:600;">Faltan ${pointsNeeded} puntos</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Info Box -->
+                <div style="background:#dbeafe;border:1px solid #3b82f6;border-radius:8px;padding:12px;margin-bottom:15px;">
+                    <p style="margin:0;font-size:13px;color:#1e40af;line-height:1.5;">
+                        <strong>💡 Cómo mejorar el puntaje:</strong><br>
+                        El cliente debe pagar las cuotas pendientes de sus créditos actuales. Cada pago puntual aumentará su puntaje hasta alcanzar el mínimo requerido.
+                    </p>
+                </div>
+                
+                <button onclick="closeBlockedClientModal()" class="btn btn-primary" style="width:100%;padding:12px;font-weight:600;background:#3b82f6;color:white;">
+                    Entendido
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+function closeBlockedClientModal() {
+    const modal = document.getElementById('blockedClientModal');
+    if (modal) {
         modal.remove();
     }
 }

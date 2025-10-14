@@ -256,6 +256,23 @@ async function syncCreditos(creditos) {
                 continue;
             }
 
+            // Verificar estado del cliente antes de sincronizar (solo advertencia, no bloqueo)
+            try {
+                const { data: clientData } = await APP.supabase
+                    .from('clients')
+                    .select('status, score, nombre')
+                    .eq('panel_id', APP.collectorContext.panelId)
+                    .eq('id', clienteId)
+                    .maybeSingle();
+                
+                if (clientData?.status === 'blocked') {
+                    console.warn(`⚠️ ADVERTENCIA: Sincronizando crédito de cliente BLOQUEADO: ${clientData.nombre} (Score: ${clientData.score})`);
+                    console.warn(`   Este crédito fue creado offline antes de que se implementara la validación de bloqueo.`);
+                }
+            } catch (e) {
+                console.warn('No se pudo verificar estado del cliente en sync:', e);
+            }
+
             // Preparar datos para Supabase
             const creditData = {
                 panel_id: APP.collectorContext.panelId,
@@ -539,6 +556,23 @@ async function syncRecogidas(recogidas) {
 
             // Si hay nuevo crédito, crearlo
             if (recogida.nuevo_credito) {
+                // Verificar estado del cliente antes de crear nuevo crédito (solo advertencia)
+                try {
+                    const { data: clientData } = await APP.supabase
+                        .from('clients')
+                        .select('status, score, nombre')
+                        .eq('panel_id', APP.collectorContext.panelId)
+                        .eq('id', recogida.cliente_id)
+                        .maybeSingle();
+                    
+                    if (clientData?.status === 'blocked') {
+                        console.warn(`⚠️ ADVERTENCIA: Creando nuevo crédito para cliente BLOQUEADO: ${clientData.nombre} (Score: ${clientData.score})`);
+                        console.warn(`   Esta renovación fue registrada offline antes de que se implementara la validación de bloqueo.`);
+                    }
+                } catch (e) {
+                    console.warn('No se pudo verificar estado del cliente en sync recogida:', e);
+                }
+                
                 const { error: creditError } = await APP.supabase
                     .from('prestamos')
                     .insert({
