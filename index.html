@@ -1714,12 +1714,23 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
             try {
                 console.log('🚀 Iniciando Cobrador App v3.0...');
                 
-                // 🆕 1. Inicializar IndexedDB
-                try {
-                    await initDB();
-                    console.log('✅ IndexedDB inicializado');
-                } catch (dbError) {
-                    console.warn('⚠️ IndexedDB falló, usando localStorage:', dbError);
+                // 🆕 1. Inicializar IndexedDB con retry para iPhone
+                let dbInitialized = false;
+                for (let attempt = 1; attempt <= 3 && !dbInitialized; attempt++) {
+                    try {
+                        console.log(`🔄 Intento ${attempt} de inicializar IndexedDB...`);
+                        await initDB();
+                        dbInitialized = DB.isReady;
+                        console.log('✅ IndexedDB inicializado correctamente');
+                    } catch (dbError) {
+                        console.warn(`⚠️ Intento ${attempt} falló:`, dbError);
+                        if (attempt === 3) {
+                            console.error('❌ IndexedDB falló después de 3 intentos, usando localStorage');
+                            DB.isReady = true; // Forzar ready para usar localStorage
+                        } else {
+                            await new Promise(resolve => setTimeout(resolve, 500)); // Esperar antes de reintentar
+                        }
+                    }
                 }
                 
                 // 🆕 2. Inicializar sistema de cifrado
@@ -3036,18 +3047,29 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                 console.log('  isReallyOffline:', isReallyOffline);
                 console.log('  Condición (isReallyOffline):', isReallyOffline);
                 
-                // 🆕 Verificar que IndexedDB esté listo
-                console.log('🔍 Verificando IndexedDB...');
+                // 🆕 Verificar que el sistema esté listo (IndexedDB o localStorage)
+                console.log('🔍 Verificando sistema de almacenamiento...');
                 console.log('  DB.isSupported:', DB.isSupported);
                 console.log('  DB.isReady:', DB.isReady);
                 console.log('  DB.instance:', DB.instance ? 'Existe' : 'NULL');
                 
-                if (!DB.isSupported || !DB.isReady || !DB.instance) {
-                    console.error('❌ IndexedDB no está listo!');
-                    alert('⚠️ Base de datos local no inicializada.\nRecarga la página (F5).');
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Guardar Cliente';
-                    return;
+                if (!DB.isReady) {
+                    console.error('❌ Sistema de almacenamiento no está listo!');
+                    console.error('Intentando reinicializar...');
+                    
+                    // 🍎 Intento de emergencia para iPhone
+                    try {
+                        await initDB();
+                        if (!DB.isReady) {
+                            throw new Error('No se pudo inicializar después del retry');
+                        }
+                    } catch (retryError) {
+                        console.error('❌ Retry falló:', retryError);
+                        alert('⚠️ Error inicializando almacenamiento.\n\nPor favor:\n1. Cierra otras pestañas de la app\n2. Recarga la página (F5)\n3. Si persiste, limpia el caché del navegador');
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Guardar Cliente';
+                        return;
+                    }
                 }
                 const name = document.getElementById('clientName').value.trim();
                 const cedula = document.getElementById('clientCedula').value.trim();

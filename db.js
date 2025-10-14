@@ -112,17 +112,30 @@ function generateUUID() {
 async function initDB() {
     console.log('🔧 Inicializando IndexedDB...');
     
-    // 🔒 Solicitar persistencia PRIMERO (antes de crear la BD)
-    await requestPersistentStorage();
-    
-    // Verificar soporte
+    // 🍎 iPhone/Safari: Verificar soporte PRIMERO
     if (!window.indexedDB) {
         console.warn('⚠️ IndexedDB no soportado - usando fallback localStorage');
         DB.isSupported = false;
+        DB.isReady = true; // Marcar como ready para que funcione con localStorage
         return initLegacyStorage();
+    }
+    
+    // 🔒 Solicitar persistencia (no bloquear si falla en iPhone)
+    try {
+        await requestPersistentStorage();
+    } catch (persistError) {
+        console.warn('⚠️ No se pudo solicitar persistencia (continuando):', persistError);
     }
 
     return new Promise((resolve, reject) => {
+        // 🍎 Timeout para Safari (a veces indexedDB.open se cuelga)
+        const safariTimeout = setTimeout(() => {
+            console.error('❌ Timeout abriendo IndexedDB - usando localStorage');
+            DB.isSupported = false;
+            DB.isReady = true;
+            initLegacyStorage().then(resolve).catch(reject);
+        }, 5000);
+        
         const request = indexedDB.open(DB_NAME, DB_VERSION);
 
         // Crear/actualizar schema
@@ -242,6 +255,7 @@ async function initDB() {
         };
 
         request.onsuccess = (event) => {
+            clearTimeout(safariTimeout); // 🍎 Cancelar timeout
             DB.instance = event.target.result;
             DB.isReady = true;
             console.log('✅ IndexedDB conectado:', DB_NAME);
@@ -250,9 +264,12 @@ async function initDB() {
         };
 
         request.onerror = (event) => {
+            clearTimeout(safariTimeout); // 🍎 Cancelar timeout
             console.error('❌ Error al abrir IndexedDB:', event.target.error);
+            console.warn('⚠️ Cambiando a fallback localStorage');
             DB.isSupported = false;
-            reject(event.target.error);
+            DB.isReady = true; // 🍎 Marcar como ready para usar localStorage
+            initLegacyStorage().then(resolve).catch(reject);
         };
 
         request.onblocked = () => {

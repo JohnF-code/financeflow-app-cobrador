@@ -332,3 +332,4 @@ ConnectionManager.getStatus()
 **Autor:** FinanceFlow Team
 
 
+
