@@ -486,17 +486,27 @@ async function registerPaymentForLoan(loanId, clientId, amount) {
                     throw new Error('No se recibió temp_id de saveOffline');
                 }
                 
+                // 🍎 CRÍTICO: Cerrar modal INMEDIATAMENTE antes que cualquier otra cosa
+                closePaymentModal();
+                console.log('✅ Modal cerrado inmediatamente después de guardar');
+                
+                // 🍎 Actualizar estado de conexión
                 await updateConnectionStatus();
                 
-                closePaymentModal();
+                // 🍎 Mostrar notificación de éxito
+                showSuccess(`💾 Pago guardado offline - Se sincronizará cuando haya conexión`);
                 
-                // Solo 1 mensaje
-                showSuccess(`💾 Pago guardado offline\ntemp_id: ${temp_id.substring(0, 30)}...\n\nSe sincronizará cuando haya conexión`);
-                
-                // Recargar vista (mostrará cache actualizado)
+                // 🍎 Recargar vista para mostrar cambios
                 if (typeof loadPendingQuotas === 'function') {
-                    loadPendingQuotas();
+                    await loadPendingQuotas();
                 }
+                
+                // 🍎 Resetear botón al final
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Registrar';
+                }
+                
                 return;
             } catch (saveError) {
                 console.error('❌ ERROR guardando pago offline:', saveError);
