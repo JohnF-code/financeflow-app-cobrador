@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>App Cobrador v14.1</title>
+    <title>App Cobrador v14.2</title>
     <!-- Cache Buster: v14.1 - Fix offline + logout -->
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="manifest" href="manifest.webmanifest">
@@ -604,8 +604,11 @@
                     </div>
                     
                     <!-- Base Hoy -->
-                    <div class="stat-card">
-                        <h3 style="font-size: 14px; color: #374151; margin-bottom: 8px;">Base Hoy</h3>
+                    <div class="stat-card" onclick="showRegisterBaseModal()" style="cursor: pointer;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <h3 style="font-size: 14px; color: #374151;">Base Hoy</h3>
+                            <button onclick="event.stopPropagation(); showRegisterBaseModal()" style="background: #6366f1; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center;">+</button>
+                        </div>
                         <div class="value" style="font-size: 24px; font-weight: bold; color: #6366f1;" id="baseDiaria">$0</div>
                         <div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Capital inicial del día</div>
                     </div>
@@ -2922,6 +2925,141 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                 document.getElementById('efectividadPct').textContent = '0%';
                 document.getElementById('efectividadCobradas').textContent = '0';
                 document.getElementById('efectividadEsperadas').textContent = '0';
+            }
+        }
+
+        // 💰 Registrar Base Diaria
+        async function showRegisterBaseModal() {
+            const monto = prompt('💰 Ingresa la base diaria (capital inicial):\n\nEjemplo: 500000');
+            
+            if (!monto || isNaN(Number(monto)) || Number(monto) <= 0) {
+                if (monto !== null) { // null means cancelled
+                    alert('❌ Monto inválido. Ingresa un número positivo.');
+                }
+                return;
+            }
+
+            const observaciones = prompt('📝 Observaciones (opcional):') || '';
+
+            try {
+                const today = getLocalToday();
+                
+                if (APP.isOnline && navigator.onLine) {
+                    // Registrar en Supabase
+                    const { data, error} = await APP.supabase
+                        .from('collector_daily_base')
+                        .insert({
+                            collector_id: APP.collectorContext.collectorId,
+                            panel_id: APP.collectorContext.panelId,
+                            fecha: today,
+                            monto: Number(monto),
+                            observaciones: observaciones
+                        })
+                        .select()
+                        .single();
+
+                    if (error) throw error;
+
+                    alert('✅ Base diaria registrada correctamente');
+                    console.log('✅ Base registrada:', data);
+                    
+                    // Recargar stats
+                    await loadTodayStats();
+                } else {
+                    // Modo offline: guardar en cola
+                    const baseEntry = {
+                        id: 'base_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                        collector_id: APP.collectorContext.collectorId,
+                        panel_id: APP.collectorContext.panelId,
+                        fecha: today,
+                        monto: Number(monto),
+                        observaciones: observaciones,
+                        created_at: new Date().toISOString()
+                    };
+
+                    APP.offlineData.basesDiarias = APP.offlineData.basesDiarias || [];
+                    APP.offlineData.basesDiarias.push(baseEntry);
+                    
+                    await saveToCache('bases_diarias_offline', APP.offlineData.basesDiarias);
+                    
+                    alert('💾 Base guardada. Se sincronizará cuando haya conexión.');
+                    console.log('💾 Base guardada offline:', baseEntry);
+                    
+                    // Actualizar display local
+                    document.getElementById('baseDiaria').textContent = '$' + Number(monto).toLocaleString();
+                }
+            } catch (error) {
+                console.error('❌ Error registrando base:', error);
+                alert('❌ Error al registrar base: ' + (error.message || 'Error desconocido'));
+            }
+        }
+
+        // 💸 Registrar Gasto
+        async function showAddGastoForm() {
+            const concepto = prompt('💸 Concepto del gasto:\n\nEjemplo: Gasolina, Almuerzo, etc.');
+            
+            if (!concepto || concepto.trim() === '') {
+                return;
+            }
+
+            const monto = prompt('💰 Monto del gasto:\n\nEjemplo: 50000');
+            
+            if (!monto || isNaN(Number(monto)) || Number(monto) <= 0) {
+                alert('❌ Monto inválido. Ingresa un número positivo.');
+                return;
+            }
+
+            try {
+                const today = getLocalToday();
+                
+                if (APP.isOnline && navigator.onLine) {
+                    // Registrar en Supabase
+                    const { data, error } = await APP.supabase
+                        .from('collector_expenses')
+                        .insert({
+                            collector_id: APP.collectorContext.collectorId,
+                            panel_id: APP.collectorContext.panelId,
+                            fecha: today,
+                            concepto: concepto.trim(),
+                            monto: Number(monto)
+                        })
+                        .select()
+                        .single();
+
+                    if (error) throw error;
+
+                    alert('✅ Gasto registrado correctamente');
+                    console.log('✅ Gasto registrado:', data);
+                    
+                    // Recargar stats
+                    await loadTodayStats();
+                } else {
+                    // Modo offline: guardar en cola
+                    const gastoEntry = {
+                        id: 'gasto_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                        collector_id: APP.collectorContext.collectorId,
+                        panel_id: APP.collectorContext.panelId,
+                        fecha: today,
+                        concepto: concepto.trim(),
+                        monto: Number(monto),
+                        created_at: new Date().toISOString()
+                    };
+
+                    APP.offlineData.gastos = APP.offlineData.gastos || [];
+                    APP.offlineData.gastos.push(gastoEntry);
+                    
+                    await saveToCache('gastos_offline', APP.offlineData.gastos);
+                    
+                    alert('💾 Gasto guardado. Se sincronizará cuando haya conexión.');
+                    console.log('💾 Gasto guardado offline:', gastoEntry);
+                    
+                    // Actualizar display local (sumar al gasto actual)
+                    const currentGastos = Number(document.getElementById('gastos').textContent.replace(/[^\d]/g, ''));
+                    document.getElementById('gastos').textContent = '$' + (currentGastos + Number(monto)).toLocaleString();
+                }
+            } catch (error) {
+                console.error('❌ Error registrando gasto:', error);
+                alert('❌ Error al registrar gasto: ' + (error.message || 'Error desconocido'));
             }
         }
 
