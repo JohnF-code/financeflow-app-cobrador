@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>App Cobrador v11.0</title>
-    <!-- Cache Buster: v11.0 - Force SW Update -->
+    <title>App Cobrador v14.1</title>
+    <!-- Cache Buster: v14.1 - Fix offline + logout -->
+    <link rel="icon" type="image/png" href="favicon.png">
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="styles-new.css">
     
     <!-- 🆕 Módulos de almacenamiento robusto -->
-    <script src="db.js?v=11.0"></script>
-    <script src="crypto.js?v=11.0"></script>
-    <script src="sync.js?v=11.0"></script>
-    <script src="iphone-debug.js?v=11.0"></script>
+    <script src="db.js?v=14.1"></script>
+    <script src="crypto.js?v=14.1"></script>
+    <script src="sync.js?v=14.1"></script>
+    <script src="iphone-debug.js?v=14.1"></script>
     <style display="none">
         * {
             margin: 0;
@@ -74,6 +75,59 @@
         .status-online { background: #4ade80; }
         .status-offline { background: #f87171; }
         
+        /* Performance Bar in Header */
+        .performance-bar-container {
+            width: 100%;
+            height: 6px;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 12px;
+            position: relative;
+        }
+        
+        .performance-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+            border-radius: 10px;
+            transition: width 0.5s ease;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+        }
+        
+        .performance-text {
+            font-size: 11px;
+            color: #374151;
+            margin-top: 4px;
+            text-align: center;
+            font-weight: 600;
+        }
+        
+        body.dark-mode .performance-bar-container {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        body.dark-mode .performance-bar-fill {
+            background: linear-gradient(90deg, #00ff88 0%, #00d9ff 100%);
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.6);
+        }
+        
+        body.dark-mode .performance-text {
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        /* SVG Icon Styles */
+        .icon-svg {
+            width: 20px;
+            height: 20px;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        
+        .icon-svg-lg {
+            width: 48px;
+            height: 48px;
+        }
+        
         /* Offline Status Banner */
         .offline-banner {
             position: fixed !important;
@@ -89,7 +143,7 @@
             padding: 20px !important;
             margin: 0 !important;
             box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
-            z-index: 2147483647 !important;
+            z-index: 10010 !important;
             display: none !important;
             flex-direction: column !important;
             align-items: center !important;
@@ -385,59 +439,100 @@
 </head>
 <body class="light-mode">
 
-    <!-- 🆕 Banner de Estado Offline -->
-    <div id="offlineBanner" class="offline-banner">
-        <div style="font-size: 32px; margin-bottom: 8px;">📦</div>
-        <div style="font-weight: 700; font-size: 18px; line-height: 1.3;">Preparando modo offline...</div>
-        <div style="font-size: 14px; opacity: 0.95; line-height: 1.4;">Descargando datos para trabajar sin conexión</div>
+    <!-- Banner de Estado Offline / Preparando Cache -->
+    <div id="offlineBannerMain" class="offline-banner" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); padding: 12px 24px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+            </svg>
+            <div>
+                <div style="font-weight: 700; font-size: 15px; line-height: 1.2;">Preparando modo offline...</div>
+                <div style="font-size: 12px; opacity: 0.9; line-height: 1.3;">Descargando datos para trabajar sin conexión</div>
+            </div>
+        </div>
     </div>
 
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <div class="header-left">
-                <h1 id="headerTitle">Hola, Cobrador<span class="status-indicator status-online" id="statusIndicator"></span></h1>
-                <span id="offlineBadge" style="display:none;background:#ff4444;color:white;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:700;margin-left:10px;box-shadow:0 0 15px rgba(255,68,68,0.5);">0</span>
+            <div class="header-left" style="width: 100%;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h1 id="headerTitle">Hola, Cobrador<span class="status-indicator status-online" id="statusIndicator"></span></h1>
+                        <span id="offlineBadge" style="display:none;background:#ff4444;color:white;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:700;margin-left:10px;box-shadow:0 0 15px rgba(255,68,68,0.5);">0</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button id="themeToggle" class="theme-toggle" title="Cambiar tema">
+                            <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                            </svg>
+                        </button>
+                        <button id="logoutBtn">Salir</button>
+                    </div>
+                </div>
+                <!-- 📊 Mini Performance Bar -->
+                <div class="performance-bar-container">
+                    <div class="performance-bar-fill" id="performanceBar" style="width: 0%"></div>
+                </div>
+                <div class="performance-text" id="performanceText">Meta del día: $0 / $0 (0%)</div>
             </div>
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <button id="themeToggle" class="theme-toggle" title="Cambiar tema">🌓</button>
-                <button id="logoutBtn">Salir</button>
-            </div>
-        </div>
-
-        <!-- Offline Banner -->
-        <div class="offline-banner" id="offlineBanner" style="display: none;">
-            Modo offline - Los datos se sincronizarán cuando se restaure la conexión
         </div>
 
         <!-- HOME GRID -->
         <div id="homeGrid" class="home-grid">
             <div class="menu-card" data-view="pendientes">
-                <span class="menu-card-icon">📋</span>
+                <span class="menu-card-icon">
+                    <svg class="icon-svg-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9l2 2 4-4"></path>
+                    </svg>
+                </span>
                 <div class="menu-card-title">Cuotas Hoy</div>
                 <div class="menu-card-subtitle">Gestionar cobros pendientes</div>
             </div>
             
             <div class="menu-card" data-view="clientes">
-                <span class="menu-card-icon">👥</span>
+                <span class="menu-card-icon">
+                    <svg class="icon-svg-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87m-4-12a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                </span>
                 <div class="menu-card-title">Clientes</div>
                 <div class="menu-card-subtitle">Ver y crear clientes</div>
             </div>
             
             <div class="menu-card" data-view="creditos">
-                <span class="menu-card-icon">💰</span>
+                <span class="menu-card-icon">
+                    <svg class="icon-svg-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path>
+                        <path d="M12 18V6"></path>
+                    </svg>
+                </span>
                 <div class="menu-card-title">Créditos</div>
                 <div class="menu-card-subtitle">Créditos activos</div>
             </div>
             
             <div class="menu-card" data-view="pagos">
-                <span class="menu-card-icon">💵</span>
+                <span class="menu-card-icon">
+                    <svg class="icon-svg-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                        <line x1="1" y1="10" x2="23" y2="10"></line>
+                    </svg>
+                </span>
                 <div class="menu-card-title">Mis Pagos</div>
                 <div class="menu-card-subtitle">Historial de cobros</div>
             </div>
             
             <div class="menu-card full-width" data-view="resumen">
-                <span class="menu-card-icon">📊</span>
+                <span class="menu-card-icon">
+                    <svg class="icon-svg-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                </span>
                 <div class="menu-card-title">Resumen</div>
                 <div class="menu-card-subtitle">Dashboard y estadísticas</div>
             </div>
@@ -448,13 +543,31 @@
             <!-- Resumen View -->
             <div class="view active" id="resumen">
                 <div class="view-header">
-                    <div class="view-title">📊 Resumen</div>
-                    <button class="back-btn" onclick="goHome()">🏠</button>
+                    <div class="view-title">
+                        <svg style="width: 24px; height: 24px; display: inline-block; vertical-align: middle; margin-right: 8px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="20" x2="12" y2="10"></line>
+                            <line x1="18" y1="20" x2="18" y2="4"></line>
+                            <line x1="6" y1="20" x2="6" y2="16"></line>
+                        </svg>
+                        Resumen
+                    </div>
+                    <button class="back-btn" onclick="goHome()">
+                        <svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                        </svg>
+                    </button>
                 </div>
                 <div class="stats-grid">
                     <!-- Total Cobrado Hoy - CLICKEABLE -->
                     <div class="stat-card" onclick="switchView('pagos')" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
-                        <h3 style="color: white; font-size: 14px; margin-bottom: 8px;">Total cobrado hoy 👆</h3>
+                        <h3 style="color: white; font-size: 14px; margin-bottom: 8px;">
+                            Total cobrado hoy
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-left: 4px;">
+                                <path d="M7 10l5-5 5 5"/>
+                                <path d="M12 5v14"/>
+                            </svg>
+                        </h3>
                         <div class="value" style="color: white; font-size: 28px; font-weight: bold;" id="totalCollected">$0</div>
                         <div style="color: rgba(255,255,255,0.8); font-size: 11px; margin-top: 4px;">Toca para ver pagos →</div>
                     </div>
@@ -468,7 +581,13 @@
                     
                     <!-- Créditos Hoy - CLICKEABLE -->
                     <div class="stat-card" onclick="switchView('creditos')" style="cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
-                        <h3 style="font-size: 14px; color: #374151; margin-bottom: 8px;">Créditos Hoy 👆</h3>
+                        <h3 style="font-size: 14px; color: #374151; margin-bottom: 8px;">
+                            Créditos Hoy
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-left: 4px;">
+                                <path d="M7 10l5-5 5 5"/>
+                                <path d="M12 5v14"/>
+                            </svg>
+                        </h3>
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <div>
                                 <div style="font-size: 11px; color: #6b7280;">Cantidad</div>
@@ -506,7 +625,13 @@
                     
                     <!-- Clientes Hoy - CLICKEABLE -->
                     <div class="stat-card" onclick="switchView('clientes')" style="cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
-                        <h3 style="font-size: 14px; color: #374151; margin-bottom: 8px;">Clientes Hoy 👆</h3>
+                        <h3 style="font-size: 14px; color: #374151; margin-bottom: 8px;">
+                            Clientes Hoy
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-left: 4px;">
+                                <path d="M7 10l5-5 5 5"/>
+                                <path d="M12 5v14"/>
+                            </svg>
+                        </h3>
                         <div class="value" style="font-size: 24px; font-weight: bold; color: #8b5cf6;" id="clientesCount">#0</div>
                         <div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">Toca para ver lista →</div>
                     </div>
@@ -525,25 +650,59 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- Efectividad de Cobro -->
+                    <div class="stat-card" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                        <h3 style="color: white; font-size: 14px; margin-bottom: 8px;">Efectividad</h3>
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <div style="width: 60px; height: 60px; position: relative;">
+                                <svg style="transform: rotate(-90deg);" viewBox="0 0 36 36">
+                                    <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="3"/>
+                                    <circle id="efectividadCircle" cx="18" cy="18" r="15.5" fill="none" stroke="white" stroke-width="3" 
+                                            stroke-dasharray="0 100" stroke-linecap="round"/>
+                                </svg>
+                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 14px; font-weight: bold;" id="efectividadPct">0%</div>
+                            </div>
+                            <div style="text-align: right; color: white;">
+                                <div style="font-size: 11px; opacity: 0.9;">Cobradas</div>
+                                <div style="font-size: 20px; font-weight: bold;"><span id="efectividadCobradas">0</span>/<span id="efectividadEsperadas">0</span></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- Cuotas Pendientes View -->
             <div class="view" id="pendientes">
                 <div class="view-header">
-                    <div class="view-title">📋 Cuotas Hoy</div>
-                    <button class="back-btn" onclick="goHome()">🏠</button>
+                    <div class="view-title">
+                        <svg style="width: 24px; height: 24px; display: inline-block; vertical-align: middle; margin-right: 8px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9l2 2 4-4"></path>
+                        </svg>
+                        Cuotas Hoy
+                    </div>
+                    <button class="back-btn" onclick="goHome()">
+                        <svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                        </svg>
+                    </button>
                 </div>
                 <div class="list-container">
                     <div class="list-header">Cuotas Pendientes de Hoy</div>
                     
                     <!-- Search Bar -->
-                    <div style="margin-bottom: 15px;">
+                    <div style="margin-bottom: 15px; position: relative;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" 
+                             style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; opacity: 0.5; pointer-events: none;">
+                            <circle cx="11" cy="11" r="8"/>
+                            <path d="m21 21-4.35-4.35"/>
+                        </svg>
                         <input 
                             type="text" 
                             id="searchPendientes" 
-                            placeholder="🔍 Buscar por nombre o cédula..."
-                            style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px;">
+                            placeholder="Buscar por nombre o cédula..."
+                            style="width: 100%; padding: 12px 12px 12px 40px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px;">
                     </div>
                     
                     <div id="pendingQuotasList">
@@ -558,7 +717,15 @@
             <!-- Clientes View -->
             <div class="view" id="clientes">
                 <div class="view-header" style="display:flex;justify-content:space-between;align-items:center;padding:15px 20px;">
-                    <div class="view-title">👥 Clientes</div>
+                    <div class="view-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px; display: inline-block; vertical-align: middle; margin-right: 6px;">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                        Clientes
+                    </div>
                     <div style="display:flex;gap:10px;align-items:center;">
                         <button 
                             onclick="showCreateClientForm()" 
@@ -578,7 +745,12 @@
                             onmouseout="this.style.background='#f59e0b';this.style.boxShadow='0 2px 8px rgba(245, 158, 11, 0.3)';">
                             ➕ Nuevo
                         </button>
-                        <button class="back-btn" onclick="goHome()">🏠</button>
+                        <button class="back-btn" onclick="goHome()">
+                            <svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                            </svg>
+                        </button>
                     </div>
                 </div>
                 
@@ -586,12 +758,17 @@
                     <div class="list-header">Mis Clientes</div>
                     
                     <!-- Search Bar -->
-                    <div style="margin-bottom: 15px;">
+                    <div style="margin-bottom: 15px; position: relative;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" 
+                             style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; opacity: 0.5; pointer-events: none;">
+                            <circle cx="11" cy="11" r="8"/>
+                            <path d="m21 21-4.35-4.35"/>
+                        </svg>
                         <input 
                             type="text" 
                             id="searchClientes" 
-                            placeholder="🔍 Buscar por nombre, cédula o teléfono..."
-                            style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px;">
+                            placeholder="Buscar por nombre, cédula o teléfono..."
+                            style="width: 100%; padding: 12px 12px 12px 40px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px;">
                     </div>
                     
                     <div id="clientsList">
@@ -606,7 +783,14 @@
             <!-- Créditos View -->
             <div class="view" id="creditos">
                 <div class="view-header" style="display:flex;justify-content:space-between;align-items:center;padding:15px 20px;">
-                    <div class="view-title">💰 Créditos</div>
+                    <div class="view-title">
+                        <svg style="width: 24px; height: 24px; display: inline-block; vertical-align: middle; margin-right: 8px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path>
+                            <path d="M12 18V6"></path>
+                        </svg>
+                        Créditos
+                    </div>
                     <div style="display:flex;gap:10px;align-items:center;">
                         <button 
                             onclick="showCreateCreditForm()" 
@@ -624,9 +808,18 @@
                             "
                             onmouseover="this.style.background='#d97706';this.style.boxShadow='0 4px 12px rgba(245, 158, 11, 0.5)';"
                             onmouseout="this.style.background='#f59e0b';this.style.boxShadow='0 2px 8px rgba(245, 158, 11, 0.3)';">
-                            ➕ Nuevo
+                            <svg style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            Nuevo
                         </button>
-                        <button class="back-btn" onclick="goHome()">🏠</button>
+                        <button class="back-btn" onclick="goHome()">
+                            <svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                            </svg>
+                        </button>
                     </div>
                 </div>
                 
@@ -634,12 +827,17 @@
                     <div class="list-header">Créditos Activos</div>
                     
                     <!-- Search Bar -->
-                    <div style="margin-bottom: 15px;">
+                    <div style="margin-bottom: 15px; position: relative;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" 
+                             style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; opacity: 0.5; pointer-events: none;">
+                            <circle cx="11" cy="11" r="8"/>
+                            <path d="m21 21-4.35-4.35"/>
+                        </svg>
                         <input 
                             type="text" 
                             id="searchCreditos" 
-                            placeholder="🔍 Buscar por cliente o cédula..."
-                            style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px;">
+                            placeholder="Buscar por cliente o cédula..."
+                            style="width: 100%; padding: 12px 12px 12px 40px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px;">
                     </div>
                     
                     <div id="creditsList">
@@ -654,19 +852,35 @@
             <!-- Mis Pagos View -->
             <div class="view" id="pagos">
                 <div class="view-header">
-                    <div class="view-title">💵 Mis Pagos</div>
-                    <button class="back-btn" onclick="goHome()">🏠</button>
+                    <div class="view-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px; display: inline-block; vertical-align: middle; margin-right: 6px;">
+                            <line x1="12" y1="1" x2="12" y2="23"/>
+                            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                        </svg>
+                        Mis Pagos
+                    </div>
+                    <button class="back-btn" onclick="goHome()">
+                        <svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                        </svg>
+                    </button>
                 </div>
                 <div class="list-container">
                     <div class="list-header">Mis Pagos Registrados</div>
                     
                     <!-- Search Bar -->
-                    <div style="margin-bottom: 15px;">
+                    <div style="margin-bottom: 15px; position: relative;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" 
+                             style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; opacity: 0.5; pointer-events: none;">
+                            <circle cx="11" cy="11" r="8"/>
+                            <path d="m21 21-4.35-4.35"/>
+                        </svg>
                         <input 
                             type="text" 
                             id="searchPagos" 
-                            placeholder="🔍 Buscar por cliente o cédula..."
-                            style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px;">
+                            placeholder="Buscar por cliente o cédula..."
+                            style="width: 100%; padding: 12px 12px 12px 40px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px;">
                     </div>
                     
                     <div id="paymentsList">
@@ -682,9 +896,9 @@
 
     <!-- Scripts -->
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <script src="config.js?v=11.0"></script>
-    <script src="search-pagination.js?v=11.0"></script>
-    <script src="payment-forms.js?v=11.0"></script>
+    <script src="config.js?v=14.0"></script>
+    <script src="search-pagination.js?v=14.1"></script>
+    <script src="payment-forms.js?v=14.1"></script>
     <script>
         // Global app state
         const APP = {
@@ -698,8 +912,121 @@
                 clients: []
             },
             gpsEnabled: false,
-            lastLocation: null
+            lastLocation: null,
+            dailyGoal: 500000, // Meta diaria por defecto $500k
+            notificationsEnabled: false
         };
+        
+        // Push Notifications Setup
+        async function setupPushNotifications() {
+            if (!('Notification' in window)) {
+                console.log('❌ Navegador no soporta notificaciones');
+                return;
+            }
+            
+            if (Notification.permission === 'granted') {
+                APP.notificationsEnabled = true;
+                console.log('✅ Notificaciones habilitadas');
+            } else if (Notification.permission !== 'denied') {
+                // Solicitar permiso solo si no está denegado
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    APP.notificationsEnabled = true;
+                    console.log('✅ Notificaciones habilitadas por el usuario');
+                }
+            }
+        }
+        
+        // Mostrar notificación de pagos vencidos
+        function showOverdueNotification(count) {
+            if (!APP.notificationsEnabled || !navigator.onLine) return;
+            
+            if (Notification.permission === 'granted') {
+                new Notification('⚠️ Pagos Vencidos', {
+                    body: `Tienes ${count} pago${count > 1 ? 's' : ''} vencido${count > 1 ? 's' : ''} pendiente${count > 1 ? 's' : ''}`,
+                    icon: '/cobrador/icon-192.png',
+                    badge: '/cobrador/icon-192.png',
+                    tag: 'overdue-payments',
+                    requireInteraction: false
+                });
+            }
+        }
+        
+        // Actualizar barra de rendimiento
+        async function updatePerformanceBar() {
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                
+                // Obtener total cobrado hoy desde la tabla pagos
+                const { data: payments, error } = await APP.supabase
+                    .from('pagos')
+                    .select('monto')
+                    .eq('cobrador_id', APP.collectorContext.collectorId)
+                    .eq('fecha_pago', today);
+                
+                if (error) throw error;
+                
+                const totalCollected = payments?.reduce((sum, p) => sum + (p.monto || 0), 0) || 0;
+                const percentage = Math.min((totalCollected / APP.dailyGoal) * 100, 100);
+                
+                // Actualizar UI
+                const bar = document.getElementById('performanceBar');
+                const text = document.getElementById('performanceText');
+                
+                if (bar && text) {
+                    bar.style.width = percentage + '%';
+                    text.textContent = `Meta del día: $${totalCollected.toLocaleString()} / $${APP.dailyGoal.toLocaleString()} (${Math.round(percentage)}%)`;
+                    
+                    // Cambiar color según progreso
+                    if (percentage >= 100) {
+                        bar.style.background = 'linear-gradient(90deg, #00ff88 0%, #00d9ff 100%)';
+                    } else if (percentage >= 75) {
+                        bar.style.background = 'linear-gradient(90deg, #10b981 0%, #059669 100%)';
+                    } else if (percentage >= 50) {
+                        bar.style.background = 'linear-gradient(90deg, #f59e0b 0%, #d97706 100%)';
+                    } else {
+                        bar.style.background = 'linear-gradient(90deg, #ef4444 0%, #dc2626 100%)';
+                    }
+                }
+            } catch (error) {
+                console.error('Error actualizando barra de rendimiento:', error);
+            }
+        }
+        
+        // Verificar pagos vencidos y notificar
+        async function checkOverduePayments() {
+            if (!APP.notificationsEnabled || !navigator.onLine) return;
+            
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                
+                const { data: overdueQuotas, error } = await APP.supabase
+                    .from('cuotas')
+                    .select('id')
+                    .eq('cobrador_id', APP.collectorContext.collectorId)
+                    .lt('fecha_vencimiento', today)
+                    .eq('estado', 'pendiente');
+                
+                if (error) throw error;
+                
+                const overdueCount = overdueQuotas?.length || 0;
+                
+                // Solo notificar si hay pagos vencidos
+                if (overdueCount > 0) {
+                    // Verificar última notificación para no spamear
+                    const lastNotification = localStorage.getItem('lastOverdueNotification');
+                    const now = new Date().getTime();
+                    const fourHours = 4 * 60 * 60 * 1000; // 4 horas en ms
+                    
+                    if (!lastNotification || (now - parseInt(lastNotification)) > fourHours) {
+                        showOverdueNotification(overdueCount);
+                        localStorage.setItem('lastOverdueNotification', now.toString());
+                    }
+                }
+            } catch (error) {
+                console.error('Error verificando pagos vencidos:', error);
+            }
+        }
 
         // 🆕 loadOfflineData() y saveOfflineData() eliminadas - ahora usa IndexedDB en db.js
 
@@ -765,7 +1092,7 @@
                 errorDiv.style.display = 'none';
                 
                 // Show instructions for mobile
-                instructionsDiv.innerHTML = '<strong>👆 Mira en la parte superior de tu pantalla</strong><br>Aparecerá un mensaje del navegador. Presiona <strong>"Permitir"</strong> para continuar.';
+                instructionsDiv.innerHTML = '<strong><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 4px;"><path d="M7 10l5-5 5 5"/><path d="M12 5v14"/></svg>Mira en la parte superior de tu pantalla</strong><br>Aparecerá un mensaje del navegador. Presiona <strong>"Permitir"</strong> para continuar.';
                 instructionsDiv.style.display = 'block';
                 
                 // Request GPS permission
@@ -847,7 +1174,7 @@
                 errorDiv.innerHTML = `<strong>${errorMsg}</strong>${helpText}`;
                 errorDiv.style.display = 'block';
                 
-                btn.textContent = '🔄 Reintentar';
+                btn.innerHTML = '<svg style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path></svg>Reintentar';
                 btn.disabled = false;
             }
         }
@@ -918,10 +1245,10 @@
                     </div>
                     <div style="display:flex;gap:6px;">
                         <button onclick="toggleSyncDetails()" style="padding:6px 10px;background:rgba(0,0,0,0.1);border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;color:#92400e;" title="Ver detalles">
-                            📋 Ver
+                            <svg style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 2px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"></path></svg>Ver
                         </button>
                         <button onclick="manualSync()" style="padding:6px 10px;background:rgba(0,0,0,0.1);border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:600;color:#92400e;" title="Sincronizar ahora">
-                            🔄 Sync
+                            <svg style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 2px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path></svg>Sync
                         </button>
                     </div>
                 </div>
@@ -1119,7 +1446,7 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
 
         // 🆕 Prepare offline data (cache everything needed for offline work)
         async function prepareOfflineData() {
-            const banner = document.getElementById('offlineBanner');
+            const banner = document.getElementById('offlineBannerMain');
             
             try {
                 banner.classList.add('show');
@@ -1348,7 +1675,7 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
 
                 // Mostrar confirmación de éxito
                 banner.classList.add('ready');
-                updateBanner('✅', '¡Listo para trabajar offline!', `${clientes?.length || 0} clientes, ${loansWithDetails?.length || 0} préstamos${storageText}`);
+                updateBanner('✅', '¡Listo para trabajar offline!', `${clientes?.length || 0} clientes, ${prestamos?.length || 0} préstamos${storageText}`);
                 
                 // Sincronizar datos pendientes
                 await syncOfflineData();
@@ -1366,13 +1693,19 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
         }
         
         function updateBanner(icon, title, subtitle) {
-            const banner = document.getElementById('offlineBanner');
+            const banner = document.getElementById('offlineBannerMain');
             if (!banner) return;
             
             banner.innerHTML = `
-                <div style="font-size: 32px; margin-bottom: 8px;">${icon}</div>
-                <div style="font-weight: 700; font-size: 18px; line-height: 1.3;">${title}</div>
-                <div style="font-size: 14px; opacity: 0.95; line-height: 1.4;">${subtitle}</div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                    </svg>
+                    <div>
+                        <div style="font-weight: 700; font-size: 15px; line-height: 1.2;">${title}</div>
+                        <div style="font-size: 12px; opacity: 0.9; line-height: 1.3;">${subtitle}</div>
+                    </div>
+                </div>
             `;
         }
 
@@ -1410,6 +1743,7 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                 // 5. Get collector context
                 await getCollectorContext();
                 
+                console.log('✅ Collector context ready:', APP.collectorContext);
                 console.log('📍 About to setup event listeners...');
                 
                 // 6. Setup event listeners
@@ -1428,6 +1762,12 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                     console.log('🔄 Online detectado - preparando datos offline...');
                     await prepareOfflineData();
                 }
+                
+                // 📊 10. Actualizar barra de rendimiento inicial
+                await updatePerformanceBar();
+                
+                // 🔔 11. Verificar pagos vencidos al inicio
+                await checkOverduePayments();
                 
                 console.log('✅ App inicializada correctamente');
                 
@@ -2132,7 +2472,7 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                     <h3>⚠️ Error al cargar los préstamos</h3>
                     <p style="font-size:14px;color:#666;margin:10px 0;">${error.message || 'Error desconocido'}</p>
                     <button onclick="loadPendingQuotas()" style="margin-top:10px;padding:8px 16px;background:#10b981;color:white;border:none;border-radius:6px;cursor:pointer;">
-                        🔄 Reintentar
+                        <svg style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path></svg>Reintentar
                     </button>
                 </div>`;
             }
@@ -2395,8 +2735,16 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
         }
 
         // Update dashboard stats
-        function updateDashboardStats() {
-            loadTodayStats();
+        async function updateDashboardStats() {
+            console.log('📊 updateDashboardStats() called');
+            console.log('📊 Collector Context:', APP.collectorContext);
+            
+            if (!APP.collectorContext || !APP.collectorContext.collectorId) {
+                console.error('❌ Cannot update stats: collector context not ready');
+                return;
+            }
+            
+            await loadTodayStats();
         }
 
         // Update dashboard stats with payments data
@@ -2417,38 +2765,139 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
             if (pendingPaymentsEl) pendingPaymentsEl.textContent = APP.offlineData.payments.length;
         }
 
-        // Load today's stats using optimized RPC
+        // Load today's stats using optimized RPC (con fallback offline)
         async function loadTodayStats() {
+            console.log('📊 loadTodayStats() iniciado');
+            console.log('📊 Estado conexión:', APP.isOnline ? 'ONLINE ✅' : 'OFFLINE 📵');
+            
             try {
-                const today = getLocalToday();
-                console.log('📊 Loading dashboard stats for:', today);
-                
-                // Call optimized RPC that returns all metrics in one query
-                const { data, error } = await APP.supabase
-                    .rpc('get_collector_daily_summary', {
-                        p_collector_id: APP.collectorContext.collectorId,
-                        p_fecha: today
-                    });
-
-                if (error) {
-                    console.error('RPC error:', error);
-                    throw error;
+                // Verificar que el contexto esté listo
+                if (!APP.collectorContext || !APP.collectorContext.collectorId) {
+                    console.error('❌ Contexto no listo:', APP.collectorContext);
+                    throw new Error('Collector context not initialized');
                 }
+                
+                const today = getLocalToday();
+                console.log('📊 Fecha hoy:', today);
+                console.log('📊 Using collectorId:', APP.collectorContext.collectorId);
+                
+                // MODO ONLINE: Usar RPC optimizado
+                if (APP.isOnline && navigator.onLine) {
+                    console.log('📊 Modo ONLINE - usando RPC');
+                    const { data, error } = await APP.supabase
+                        .rpc('get_collector_daily_summary', {
+                            p_collector_id: APP.collectorContext.collectorId,
+                            p_fecha: today
+                        });
 
-                console.log('📊 Dashboard data received:', data);
+                    if (error) {
+                        console.error('RPC error:', error);
+                        throw error;
+                    }
 
-                // Update all dashboard metrics
-                document.getElementById('totalCollected').textContent = '$' + Number(data.total_cobrado || 0).toLocaleString();
-                document.getElementById('saldoCaja').textContent = '$' + Number(data.saldo_caja || 0).toLocaleString();
-                document.getElementById('creditosCount').textContent = '#' + (data.creditos_count || 0);
-                document.getElementById('creditosMonto').textContent = '$' + Number(data.creditos_monto || 0).toLocaleString();
-                document.getElementById('baseDiaria').textContent = '$' + Number(data.base_diaria || 0).toLocaleString();
-                document.getElementById('gastos').textContent = '$' + Number(data.gastos || 0).toLocaleString();
-                document.getElementById('clientesCount').textContent = '#' + (data.clientes_count || 0);
-                document.getElementById('syncedPayments').textContent = data.pagos_sincronizados || 0;
-                document.getElementById('pendingPayments').textContent = APP.offlineData.payments.length;
+                    console.log('📊 Dashboard data received:', data);
+
+                    // El RPC retorna una tabla (array), accedemos al primer elemento
+                    const stats = data && data.length > 0 ? data[0] : {};
+                    
+                    console.log('📊 Stats parsed:', stats);
+                    console.log('📊 Desglose cálculo Saldo Caja:');
+                    console.log('   Base diaria:', stats.base_diaria || 0);
+                    console.log('   Total cobrado:', stats.total_cobrado || 0);
+                    console.log('   Créditos monto:', stats.creditos_monto || 0);
+                    console.log('   Gastos:', stats.gastos || 0);
+                    console.log('   Fórmula: base - creditos + cobrado - gastos');
+                    console.log('   Resultado:', stats.saldo_caja || 0);
+                    
+                    // Guardar snapshot para uso offline
+                    try {
+                        localStorage.setItem(`collector_summary_${APP.collectorContext.collectorId}_${today}`, JSON.stringify(stats));
+                        console.log('💾 Snapshot guardado para uso offline');
+                    } catch (e) {
+                        console.warn('No se pudo guardar snapshot:', e);
+                    }
+
+                    // Update all dashboard metrics
+                    document.getElementById('totalCollected').textContent = '$' + Number(stats.total_cobrado || 0).toLocaleString();
+                    document.getElementById('saldoCaja').textContent = '$' + Number(stats.saldo_caja || 0).toLocaleString();
+                    document.getElementById('creditosCount').textContent = '#' + (stats.creditos_count || 0);
+                    document.getElementById('creditosMonto').textContent = '$' + Number(stats.creditos_monto || 0).toLocaleString();
+                    document.getElementById('baseDiaria').textContent = '$' + Number(stats.base_diaria || 0).toLocaleString();
+                    document.getElementById('gastos').textContent = '$' + Number(stats.gastos || 0).toLocaleString();
+                    document.getElementById('clientesCount').textContent = '#' + (stats.clientes_count || 0);
+                    document.getElementById('syncedPayments').textContent = stats.pagos_sincronizados || 0;
+                    document.getElementById('pendingPayments').textContent = APP.offlineData.payments.length;
+                    
+                    // Update efectividad
+                    const efectividadPct = Number(stats.efectividad_pct || 0);
+                    document.getElementById('efectividadPct').textContent = efectividadPct.toFixed(0) + '%';
+                    document.getElementById('efectividadCobradas').textContent = stats.pagos_sincronizados || 0;
+                    document.getElementById('efectividadEsperadas').textContent = stats.cuotas_esperadas || 0;
+                    
+                    // Update circular progress
+                    const circumference = 2 * Math.PI * 15.5;
+                    const progress = (efectividadPct / 100) * circumference;
+                    document.getElementById('efectividadCircle').style.strokeDasharray = `${progress} ${circumference}`;
+                    
+                    // Update performance bar si existe
+                    updatePerformanceBar();
+                    
+                } else {
+                    // MODO OFFLINE: Usar datos cacheados
+                    console.log('📵 MODO OFFLINE - usando último snapshot disponible');
+                    
+                    // Intentar cargar el último resumen guardado del RPC
+                    const lastSummary = localStorage.getItem(`collector_summary_${APP.collectorContext.collectorId}_${today}`);
+                    
+                    if (lastSummary) {
+                        // Tenemos un snapshot reciente
+                        const stats = JSON.parse(lastSummary);
+                        console.log('✅ Usando snapshot guardado:', stats);
+                        
+                        // Actualizar solo los pagos offline
+                        const pagosOffline = APP.offlineData.payments || [];
+                        const totalOffline = pagosOffline.reduce((sum, p) => sum + Number(p.monto || 0), 0);
+                        
+                        document.getElementById('totalCollected').textContent = '$' + Number(stats.total_cobrado || 0).toLocaleString();
+                        document.getElementById('saldoCaja').textContent = '$' + Number((stats.saldo_caja || 0) + totalOffline).toLocaleString();
+                        document.getElementById('creditosCount').textContent = '#' + (stats.creditos_count || 0);
+                        document.getElementById('creditosMonto').textContent = '$' + Number(stats.creditos_monto || 0).toLocaleString();
+                        document.getElementById('baseDiaria').textContent = '$' + Number(stats.base_diaria || 0).toLocaleString();
+                        document.getElementById('gastos').textContent = '$' + Number(stats.gastos || 0).toLocaleString();
+                        document.getElementById('clientesCount').textContent = '#' + (stats.clientes_count || 0);
+                        document.getElementById('syncedPayments').textContent = stats.pagos_sincronizados || 0;
+                        document.getElementById('pendingPayments').textContent = pagosOffline.length;
+                        
+                        document.getElementById('efectividadPct').textContent = Number(stats.efectividad_pct || 0).toFixed(0) + '%';
+                        document.getElementById('efectividadCobradas').textContent = stats.pagos_sincronizados || 0;
+                        document.getElementById('efectividadEsperadas').textContent = stats.cuotas_esperadas || 0;
+                    } else {
+                        // Sin snapshot, calcular básico
+                        console.log('⚠️ Sin snapshot guardado, mostrando solo pagos offline');
+                        const pagosOffline = APP.offlineData.payments || [];
+                        const totalOffline = pagosOffline.reduce((sum, p) => sum + Number(p.monto || 0), 0);
+                        
+                        document.getElementById('totalCollected').textContent = '$0';
+                        document.getElementById('saldoCaja').textContent = '$' + totalOffline.toLocaleString();
+                        document.getElementById('creditosCount').textContent = '#0';
+                        document.getElementById('creditosMonto').textContent = '$0';
+                        document.getElementById('baseDiaria').textContent = '$0';
+                        document.getElementById('gastos').textContent = '$0';
+                        document.getElementById('clientesCount').textContent = '#0';
+                        document.getElementById('syncedPayments').textContent = '0';
+                        document.getElementById('pendingPayments').textContent = pagosOffline.length;
+                        document.getElementById('efectividadPct').textContent = '0%';
+                        document.getElementById('efectividadCobradas').textContent = '0';
+                        document.getElementById('efectividadEsperadas').textContent = '0';
+                    }
+                }
+                
             } catch (error) {
                 console.error('❌ Error loading dashboard stats:', error);
+                console.error('   Tipo error:', error.name);
+                console.error('   Mensaje:', error.message);
+                console.error('   Stack:', error.stack);
+                
                 // Show zeros on error
                 document.getElementById('totalCollected').textContent = '$0';
                 document.getElementById('saldoCaja').textContent = '$0';
@@ -2459,6 +2908,9 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                 document.getElementById('clientesCount').textContent = '#0';
                 document.getElementById('syncedPayments').textContent = '0';
                 document.getElementById('pendingPayments').textContent = '0';
+                document.getElementById('efectividadPct').textContent = '0%';
+                document.getElementById('efectividadCobradas').textContent = '0';
+                document.getElementById('efectividadEsperadas').textContent = '0';
             }
         }
 
@@ -2777,7 +3229,9 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                             style="padding:12px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer;transition:all 0.2s;margin-bottom:8px;"
                             onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">
                             <div style="font-weight:600;color:#333;margin-bottom:2px;">${c.nombre||''}</div>
-                            <div style="font-size:13px;color:#666;">🆔 ${c.cedula||''}</div>
+                            <div style="font-size:13px;color:#666;">
+                                <svg style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 2px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>${c.cedula||''}
+                            </div>
                             <button type="button" style="margin-top:6px;padding:6px 12px;background:#10b981;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;">
                                 Asignar
                             </button>
@@ -2939,7 +3393,7 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                                     clientDiv.appendChild(nameDiv);
                                     
                                     const cedulaDiv = document.createElement('div');
-                                    cedulaDiv.textContent = '🆔 ' + (c.cedula || '');
+                                    cedulaDiv.innerHTML = '<svg style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 2px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>' + (c.cedula || '');
                                     cedulaDiv.style.cssText = 'font-size:13px;color:#666;';
                                     clientDiv.appendChild(cedulaDiv);
                                     
@@ -3118,7 +3572,7 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                                                 div.appendChild(nameDiv);
                                                 
                                                 const cedulaDiv = document.createElement('div');
-                                                cedulaDiv.textContent = '🆔 ' + (c.cedula || '');
+                                                cedulaDiv.innerHTML = '<svg style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 2px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>' + (c.cedula || '');
                                                 cedulaDiv.style.cssText = 'font-size:12px;color:#666;';
                                                 div.appendChild(cedulaDiv);
                                                 
@@ -3241,7 +3695,9 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                                     <div onclick="selectClientForCredit('${c.id}','${(c.nombre||'').replace(/'/g, "\\'")}','${c.cedula||''}')" 
                                         style="padding:10px;border-bottom:1px solid #eee;cursor:pointer;">
                                         <div style="font-weight:600;">${c.nombre||''}</div>
-                                        <div style="font-size:12px;color:#666;">🆔 ${c.cedula||''}</div>
+                                        <div style="font-size:12px;color:#666;">
+                                            <svg style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 2px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>${c.cedula||''}
+                                        </div>
                                     </div>
                                 `).join('');
                             } catch (e) {
@@ -3362,7 +3818,9 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                         style="padding:12px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer;transition:all 0.2s;margin-bottom:8px;"
                         onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'">
                         <div style="font-weight:600;color:#333;margin-bottom:2px;">${c.nombre}</div>
-                        <div style="font-size:13px;color:#666;">🆔 ${c.cedula}</div>
+                        <div style="font-size:13px;color:#666;">
+                            <svg style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 2px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>${c.cedula}
+                        </div>
                         <button type="button" style="margin-top:6px;padding:6px 12px;background:#10b981;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;">
                             Asignar
                         </button>
@@ -3556,7 +4014,9 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                             style="padding:10px;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;margin-bottom:6px;background:white;"
                             onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">
                             <div style="font-weight:600;color:#333;">${c.nombre}</div>
-                            <div style="font-size:12px;color:#666;">🆔 ${c.cedula}</div>
+                            <div style="font-size:12px;color:#666;">
+                                <svg style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 2px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>${c.cedula}
+                            </div>
                         </div>
                     `).join('');
                     
@@ -3573,7 +4033,7 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
         function selectClientForCredit(clientId, clientName, clientCedula) {
             document.getElementById('creditClient').value = clientId;
             document.getElementById('selectedClientName').textContent = clientName;
-            document.getElementById('selectedClientCedula').textContent = `🆔 ${clientCedula}`;
+            document.getElementById('selectedClientCedula').innerHTML = '<svg style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 2px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>' + clientCedula;
             
             // Hide selector, show form
             document.getElementById('clientSelectorView').style.display = 'none';
@@ -3588,7 +4048,14 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
         
         // Hide create credit form
         function hideCreateCreditForm() {
-            document.getElementById('creditModal')?.remove();
+            const modal = document.getElementById('creditModal');
+            if (modal) {
+                console.log('🗑️ Eliminando modal de crédito del DOM');
+                modal.remove();
+                console.log('✅ Modal eliminado');
+            } else {
+                console.log('⚠️ Modal de crédito no encontrado en DOM');
+            }
         }
         
         // Create credit
@@ -3614,6 +4081,79 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                 
                 if (!clientId) {
                     throw new Error('Selecciona un cliente');
+                }
+                
+                // 🚫 VALIDACIÓN SCORE BLOQUEADO - Verificar antes de crear crédito
+                let clientData, requiredScore;
+                if (APP.isOnline && navigator.onLine) {
+                    // Online: obtener de Supabase
+                    const { data: client } = await APP.supabase
+                        .from('clients')
+                        .select('nombre, score, status')
+                        .eq('id', clientId)
+                        .single();
+                    clientData = client;
+                    
+                    const { data: scoreSetting } = await APP.supabase
+                        .from('settings')
+                        .select('value')
+                        .eq('panel_id', APP.collectorContext.panelId)
+                        .eq('key', 'bloqueo_score_minimo')
+                        .maybeSingle();
+                    requiredScore = scoreSetting?.value ? Number(scoreSetting.value) : 550;
+                } else {
+                    // Offline: obtener del cache
+                    const cachedClients = await loadFromCache('clientes_cache');
+                    clientData = cachedClients?.find(c => c.id === clientId);
+                    
+                    const cachedSettingsRows = await loadFromCache('panel_settings_cache');
+                    const settingsObj = {};
+                    if (cachedSettingsRows && Array.isArray(cachedSettingsRows)) {
+                        cachedSettingsRows.forEach(row => {
+                            try {
+                                settingsObj[row.key] = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+                            } catch {
+                                settingsObj[row.key] = row.value;
+                            }
+                        });
+                    }
+                    requiredScore = Number(settingsObj.bloqueo_score_minimo) || 550;
+                }
+                
+                const clientScore = clientData?.score || 0;
+                console.log(`🔍 Validando score cliente - Score: ${clientScore}, Requerido: ${requiredScore}`);
+                
+                // 🚫 Bloquear si score < requerido
+                if (clientScore < requiredScore) {
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Crear Crédito';
+                    }
+                    console.warn(`🚫 Cliente bloqueado - Score: ${clientScore}, Requerido: ${requiredScore}`);
+                    
+                    // 🔒 CERRAR modal de crédito ANTES de mostrar modal bloqueado
+                    console.log('🗑️ Cerrando modal de crédito...');
+                    hideCreateCreditForm();
+                    
+                    // Verificar que el modal se cerró
+                    console.log('✅ Modal cerrado, esperando para mostrar modal bloqueado...');
+                    
+                    // Mostrar modal bloqueado DESPUÉS de cerrar el otro modal con delay más largo
+                    setTimeout(() => {
+                        console.log('🚫 Mostrando modal bloqueado...');
+                        if (typeof window.showBlockedClientModal === 'function') {
+                            window.showBlockedClientModal(
+                                clientData?.nombre || 'Cliente',
+                                clientScore,
+                                requiredScore,
+                                !APP.isOnline || !navigator.onLine
+                            );
+                            console.log('✅ Modal bloqueado llamado');
+                        } else {
+                            console.error('❌ showBlockedClientModal no está definido');
+                        }
+                    }, 300);
+                    return;
                 }
                 
                 if (!amount || amount < 50000) {
@@ -3751,11 +4291,11 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
             // Update initial status
             updateConnectionStatus();
             
-            // 🔄 Registro normal de Service Worker v11.0
+            // Service Worker v14.1
             if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('sw.js?v=11.0')
+                navigator.serviceWorker.register('sw.js?v=14.1')
                     .then(registration => {
-                        console.log('✅ Service Worker v11.0 registrado:', registration.scope);
+                        console.log('✅ Service Worker v14.1 registrado:', registration.scope);
                         
                         // Check for updates
                         registration.update();
@@ -3764,6 +4304,25 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
                         console.error('❌ Error con Service Worker:', error);
                     });
             }
+            
+            // 🔔 Setup notificaciones push
+            setTimeout(() => {
+                setupPushNotifications();
+            }, 2000); // Esperar 2 segundos después del login
+            
+            // 🔔 Verificar pagos vencidos cada 30 minutos
+            setInterval(() => {
+                if (navigator.onLine) {
+                    checkOverduePayments();
+                }
+            }, 30 * 60 * 1000);
+            
+            // 📊 Actualizar barra de rendimiento cada 5 minutos
+            setInterval(() => {
+                if (navigator.onLine) {
+                    updatePerformanceBar();
+                }
+            }, 5 * 60 * 1000);
         }
 
         // 🆕 Update connection status (usa IndexedDB ahora)
@@ -3799,26 +4358,190 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
 
         // 🆕 syncOfflineData() ahora está en sync.js - ya no se necesita aquí
 
-        // Show login
+        // Show login con diseño crypto
         function showLogin() {
             document.body.innerHTML = `
-                <div class="container">
-                    <div class="header">
-                        <h1>Cobrador</h1>
-                        <p>Inicia sesión para continuar</p>
-                    </div>
-                    <div class="content">
+                <style>
+                    @keyframes float {
+                        0%, 100% { transform: translateY(0px); }
+                        50% { transform: translateY(-10px); }
+                    }
+                    @keyframes pulse-glow {
+                        0%, 100% { box-shadow: 0 0 20px rgba(0, 217, 255, 0.3); }
+                        50% { box-shadow: 0 0 40px rgba(0, 217, 255, 0.6); }
+                    }
+                    .login-bg {
+                        background: linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e293b 100%);
+                        min-height: 100vh;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 20px;
+                        position: relative;
+                        overflow: hidden;
+                    }
+                    .login-bg::before {
+                        content: '';
+                        position: absolute;
+                        width: 500px;
+                        height: 500px;
+                        background: radial-gradient(circle, rgba(0, 217, 255, 0.1) 0%, transparent 70%);
+                        top: -250px;
+                        right: -250px;
+                        animation: float 6s ease-in-out infinite;
+                    }
+                    .login-bg::after {
+                        content: '';
+                        position: absolute;
+                        width: 400px;
+                        height: 400px;
+                        background: radial-gradient(circle, rgba(255, 215, 0, 0.08) 0%, transparent 70%);
+                        bottom: -200px;
+                        left: -200px;
+                        animation: float 8s ease-in-out infinite reverse;
+                    }
+                    .login-card {
+                        background: rgba(15, 23, 42, 0.95);
+                        border: 2px solid #00d9ff;
+                        border-radius: 20px;
+                        padding: 40px 30px;
+                        max-width: 400px;
+                        width: 100%;
+                        box-shadow: 0 0 40px rgba(0, 217, 255, 0.3);
+                        position: relative;
+                        z-index: 1;
+                        animation: pulse-glow 3s ease-in-out infinite;
+                    }
+                    .login-header {
+                        text-align: center;
+                        margin-bottom: 30px;
+                    }
+                    .app-badge {
+                        display: inline-block;
+                        background: linear-gradient(135deg, #00d9ff 0%, #00ff88 100%);
+                        color: #020617;
+                        padding: 8px 16px;
+                        border-radius: 20px;
+                        font-size: 12px;
+                        font-weight: 700;
+                        letter-spacing: 1px;
+                        margin-bottom: 15px;
+                        box-shadow: 0 0 20px rgba(0, 217, 255, 0.4);
+                    }
+                    .login-title {
+                        font-size: 32px;
+                        font-weight: 700;
+                        background: linear-gradient(135deg, #00d9ff 0%, #00ff88 100%);
+                        -webkit-background-clip: text;
+                        -webkit-text-fill-color: transparent;
+                        margin-bottom: 10px;
+                    }
+                    .login-subtitle {
+                        color: rgba(226, 232, 240, 0.7);
+                        font-size: 14px;
+                    }
+                    .form-group {
+                        margin-bottom: 20px;
+                    }
+                    .form-label {
+                        display: block;
+                        color: #00d9ff;
+                        font-size: 13px;
+                        font-weight: 600;
+                        margin-bottom: 8px;
+                        letter-spacing: 0.5px;
+                    }
+                    .form-input {
+                        width: 100%;
+                        padding: 12px 15px;
+                        background: rgba(15, 23, 42, 0.8);
+                        border: 1px solid #00d9ff;
+                        border-radius: 10px;
+                        color: #e2e8f0;
+                        font-size: 15px;
+                        transition: all 0.3s ease;
+                        box-shadow: 0 0 15px rgba(0, 217, 255, 0.2);
+                    }
+                    .form-input:focus {
+                        outline: none;
+                        border-color: #00ff88;
+                        box-shadow: 0 0 25px rgba(0, 255, 136, 0.4);
+                    }
+                    .form-input::placeholder {
+                        color: rgba(226, 232, 240, 0.4);
+                    }
+                    .login-btn {
+                        width: 100%;
+                        padding: 14px;
+                        background: rgba(0, 217, 255, 0.2);
+                        border: 2px solid #00d9ff;
+                        border-radius: 10px;
+                        color: #00d9ff;
+                        font-size: 16px;
+                        font-weight: 700;
+                        cursor: pointer;
+                        transition: all 0.3s ease;
+                        box-shadow: 0 0 20px rgba(0, 217, 255, 0.3);
+                        letter-spacing: 1px;
+                    }
+                    .login-btn:hover:not(:disabled) {
+                        background: rgba(0, 255, 136, 0.2);
+                        border-color: #00ff88;
+                        color: #00ff88;
+                        box-shadow: 0 0 30px rgba(0, 255, 136, 0.5);
+                        transform: translateY(-2px);
+                    }
+                    .login-btn:disabled {
+                        opacity: 0.6;
+                        cursor: not-allowed;
+                    }
+                    .login-error {
+                        background: rgba(239, 68, 68, 0.2);
+                        border: 1px solid #ef4444;
+                        color: #ff8888;
+                        padding: 12px;
+                        border-radius: 8px;
+                        margin-bottom: 15px;
+                        font-size: 14px;
+                        box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);
+                    }
+                </style>
+                <div class="login-bg">
+                    <div class="login-card">
+                        <div class="login-header">
+                            <div class="app-badge">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 6px;">
+                                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                                    <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                                </svg>
+                                APP COBRADOR
+                            </div>
+                            <h1 class="login-title">SmartMoneyGo</h1>
+                            <p class="login-subtitle">Gestión financiera inteligente</p>
+                        </div>
                         <form id="loginForm">
                             <div class="form-group">
-                                <label class="form-label" for="email">Email</label>
-                                <input type="email" id="email" class="form-input" required value="jhonalexander@gmail.com">
+                                <label class="form-label" for="email">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 6px;">
+                                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                                        <polyline points="22,6 12,13 2,6"></polyline>
+                                    </svg>
+                                    Email
+                                </label>
+                                <input type="email" id="email" class="form-input" required value="jhonalexander@gmail.com" placeholder="tu@email.com">
                             </div>
                             <div class="form-group">
-                                <label class="form-label" for="password">Contraseña</label>
-                                <input type="password" id="password" class="form-input" required>
+                                <label class="form-label" for="password">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 6px;">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                    </svg>
+                                    Contraseña
+                                </label>
+                                <input type="password" id="password" class="form-input" required placeholder="••••••••">
                             </div>
-                            <div id="loginError" style="display: none; color: #f87171; margin: 10px 0; padding: 10px; background: rgba(248, 113, 113, 0.1); border-radius: 8px;"></div>
-                            <button type="submit" class="btn btn-primary" style="width: 100%;" id="loginBtn">Iniciar Sesión</button>
+                            <div id="loginError" style="display: none;" class="login-error"></div>
+                            <button type="submit" class="login-btn" id="loginBtn">INICIAR SESIÓN</button>
                         </form>
                     </div>
                 </div>
@@ -3865,19 +4588,33 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
         async function logout() {
             try {
                 console.log('Logging out...');
-                const { error } = await APP.supabase.auth.signOut();
-                if (error) {
-                    console.error('Logout error:', error);
-                    throw error;
+                
+                // Si estamos online, hacer signOut normal
+                if (navigator.onLine && APP.isOnline) {
+                    const { error } = await APP.supabase.auth.signOut();
+                    if (error) {
+                        console.error('Logout error:', error);
+                        throw error;
+                    }
+                    console.log('Logout successful');
+                } else {
+                    // Si estamos offline, solo limpiar datos locales
+                    console.log('Logout offline - limpiando datos locales');
+                    localStorage.removeItem('sb-app-auth');
+                    localStorage.removeItem('sb-console-auth');
                 }
-                console.log('Logout successful, reloading...');
+                
                 // Clear app context
                 APP.collectorContext = null;
+                
                 // Reload page
                 window.location.href = window.location.pathname;
             } catch (error) {
                 console.error('Logout error:', error);
-                alert('Error al cerrar sesión: ' + error.message);
+                // Forzar limpieza y recarga incluso si hay error
+                localStorage.removeItem('sb-app-auth');
+                localStorage.removeItem('sb-console-auth');
+                window.location.href = window.location.pathname;
             }
         }
 
@@ -3964,9 +4701,10 @@ Recomendación: Mantén el uso por debajo del 80% para mejor rendimiento.
         
         // Setup new navigation
         function setupNewNavigation() {
-            // Load saved theme
+            // 🌙 Load saved theme (persistencia ya implementada)
             const savedTheme = localStorage.getItem('theme') || 'light';
             document.body.classList.add(savedTheme + '-mode');
+            console.log('✅ Tema cargado:', savedTheme);
             
             // Theme toggle button
             const themeToggle = document.getElementById('themeToggle');

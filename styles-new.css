@@ -171,6 +171,29 @@ body.dark-mode [style*="color:#374151"] {
     color: #e2e8f0 !important;
 }
 
+/* Dark mode para paginación */
+body.dark-mode .pagination-counter,
+body.dark-mode .pagination-ellipsis {
+    color: rgba(226, 232, 240, 0.8) !important;
+}
+
+body.dark-mode .pagination-button {
+    color: #e2e8f0 !important;
+    border-color: rgba(0, 217, 255, 0.4) !important;
+}
+
+body.dark-mode .pagination-button.active {
+    background: #10b981 !important;
+    border-color: #10b981 !important;
+    color: white !important;
+}
+
+/* Dark mode para fecha de vencimiento en cuotas */
+body.dark-mode .quota-due-date {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: rgba(226, 232, 240, 0.8) !important;
+}
+
 /* ============ LOGIN SCREEN (ALWAYS DARK) ============ */
 #loginScreen {
     background: linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e293b 100%) !important;
@@ -385,7 +408,22 @@ body.dark-mode .theme-toggle:hover {
 .menu-card-icon {
     font-size: 3rem;
     margin-bottom: 10px;
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.menu-card-icon .icon-svg-lg {
+    width: 48px;
+    height: 48px;
+}
+
+body.light-mode .menu-card-icon svg {
+    stroke: #3b82f6;
+}
+
+body.dark-mode .menu-card-icon svg {
+    stroke: #00d9ff;
 }
 
 .menu-card-title {
@@ -637,7 +675,7 @@ body.dark-mode select:focus {
 /* ============ OFFLINE BANNER ============ */
 .offline-banner {
     position: fixed;
-    top: 10px;
+    top: 8px;
     left: 50%;
     transform: translateX(-50%);
     background: #ff4444;
@@ -645,8 +683,10 @@ body.dark-mode select:focus {
     padding: 10px 20px;
     border-radius: 10px;
     font-weight: 600;
+    font-size: 14px;
     z-index: 9999;
     box-shadow: 0 4px 15px rgba(255, 68, 68, 0.3);
+    max-width: 90%;
 }
 
 body.dark-mode .offline-banner {

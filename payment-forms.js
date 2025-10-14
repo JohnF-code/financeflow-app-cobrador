@@ -1,18 +1,29 @@
 // Funciones para formularios de pago y recolección de crédito
+console.log('✅ payment-forms.js cargado correctamente');
 
 // Show register payment form
 async function showRegisterPaymentForm(loanId) {
     try {
-        let loan, totalPending;
+        let loan, totalPending, clientScore, requiredScore;
         
         // 🆕 Si está online, obtener de Supabase
         if (APP.isOnline && navigator.onLine) {
             const { data } = await APP.supabase
                 .from('prestamos')
-                .select('id, cliente_id, cuota_diaria, clients:cliente_id(nombre)')
+                .select('id, cliente_id, cuota_diaria, clients:cliente_id(nombre, score, status)')
                 .eq('id', loanId)
                 .single();
             loan = data;
+            
+            // Obtener score threshold
+            clientScore = loan?.clients?.score || 0;
+            const { data: settingsBloqueo } = await APP.supabase
+                .from('settings')
+                .select('value')
+                .eq('panel_id', APP.collectorContext.panelId)
+                .eq('key', 'bloqueo_score_minimo')
+                .maybeSingle();
+            requiredScore = settingsBloqueo?.value ? Number(settingsBloqueo.value) : 550;
             
             const { data: cuotas } = await APP.supabase
                 .from('cuotas')
@@ -36,9 +47,11 @@ async function showRegisterPaymentForm(loanId) {
                     id: loanId,
                     cliente_id: null, // Se inferirá del préstamo
                     cuota_diaria: 0,
-                    clients: { nombre: 'Cliente (datos limitados)' }
+                    clients: { nombre: 'Cliente (datos limitados)', score: 0 }
                 };
                 totalPending = 0; // Usuario ingresará manualmente
+                clientScore = 0;
+                requiredScore = 550;
                 
                 console.log('🚨 Usando modo emergencia sin cache');
             } else {
@@ -50,7 +63,35 @@ async function showRegisterPaymentForm(loanId) {
                 };
                 totalPending = cachedLoan.saldo_total_pendiente;
                 
-                console.log(`📂 Préstamo cargado del cache - Saldo: $${totalPending}`);
+                // Obtener score del cache
+                clientScore = cachedLoan.clients?.score || 0;
+                const cachedSettingsRows = await loadFromCache('panel_settings_cache');
+                const settingsObj = {};
+                if (cachedSettingsRows && Array.isArray(cachedSettingsRows)) {
+                    cachedSettingsRows.forEach(row => {
+                        try {
+                            settingsObj[row.key] = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+                        } catch {
+                            settingsObj[row.key] = row.value;
+                        }
+                    });
+                }
+                requiredScore = Number(settingsObj.bloqueo_score_minimo) || 550;
+                
+                console.log(`📂 Préstamo cargado del cache - Saldo: $${totalPending}, Score: ${clientScore}, Required: ${requiredScore}`);
+            }
+        }
+        
+        // 🚫 VALIDACIÓN BLOQUEADO - No permitir pagos si el score es muy bajo
+        // NOTA: Permitimos registrar pagos incluso si está bloqueado (para que mejore su score)
+        // Solo mostramos advertencia si está MUY bajo
+        const warnThreshold = requiredScore - 50; // Advertir si está 50 puntos por debajo
+        if (clientScore > 0 && clientScore < warnThreshold) {
+            console.warn(`⚠️ Cliente con score bajo - Score: ${clientScore}, Umbral advertencia: ${warnThreshold}`);
+            // Mostrar advertencia pero permitir continuar
+            const continuar = confirm(`⚠️ ADVERTENCIA\n\nEl cliente ${loan.clients?.nombre} tiene un score muy bajo (${clientScore} puntos).\n\nScore mínimo para nuevos créditos: ${requiredScore} puntos\n\n¿Deseas registrar el pago de todas formas?\n(Esto ayudará a mejorar su puntaje)`);
+            if (!continuar) {
+                return;
             }
         }
         
@@ -820,7 +861,23 @@ function closeSuccessModal() {
 }
 
 // Show blocked client modal
-function showBlockedClientModal(clientName, currentScore, requiredScore, isOffline = false) {
+window.showBlockedClientModal = function(clientName, currentScore, requiredScore, isOffline = false) {
+    console.log('🚫 showBlockedClientModal llamado:', { clientName, currentScore, requiredScore, isOffline });
+    
+    // 🗑️ Remover modal previo si existe
+    const existingModal = document.getElementById('blockedClientModal');
+    if (existingModal) {
+        console.log('🗑️ Removiendo modal bloqueado existente');
+        existingModal.remove();
+    }
+    
+    // Remover también cualquier modal de crédito que pueda quedar
+    const creditModal = document.getElementById('creditModal');
+    if (creditModal) {
+        console.log('🗑️ Removiendo modal de crédito residual');
+        creditModal.remove();
+    }
+    
     const pointsNeeded = Math.max(0, requiredScore - currentScore);
     
     const offlineWarning = isOffline ? `
@@ -832,8 +889,8 @@ function showBlockedClientModal(clientName, currentScore, requiredScore, isOffli
     ` : '';
     
     const modalHTML = `
-        <div id="blockedClientModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:10001;padding:20px;">
-            <div style="background:white;border-radius:15px;padding:25px;max-width:400px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,0.3);">
+        <div id="blockedClientModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:99999;padding:20px;">
+            <div style="background:white;border-radius:15px;padding:25px;max-width:400px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,0.5);">
                 <div style="text-align:center;margin-bottom:20px;">
                     <div style="width:60px;height:60px;background:#ef4444;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 15px;">
                         <span style="color:white;font-size:32px;">🚫</span>
@@ -881,14 +938,16 @@ function showBlockedClientModal(clientName, currentScore, requiredScore, isOffli
     `;
     
     document.body.insertAdjacentHTML('beforeend', modalHTML);
-}
+    console.log('✅ Modal bloqueado insertado en el DOM');
+};
 
-function closeBlockedClientModal() {
+window.closeBlockedClientModal = function() {
+    console.log('Cerrando modal bloqueado');
     const modal = document.getElementById('blockedClientModal');
     if (modal) {
         modal.remove();
     }
-}
+};
 
 // Show add expense form
 function showAddGastoForm() {
@@ -976,7 +1035,7 @@ async function registrarGasto(monto, concepto, observaciones) {
         closeGastoModal();
         loadTodayStats();
     } catch (error) {
-                showError('Error: ' + error.message);
+        showError('Error: ' + error.message);
         btn.disabled = false;
         btn.textContent = 'Registrar';
     }
