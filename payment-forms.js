@@ -160,16 +160,28 @@ async function showCollectCreditForm(loanId) {
             
             // ✅ Validar cliente bloqueado (OFFLINE - con advertencia)
             clientScore = cachedLoan.clients?.score || 0;
-            const cachedSettings = await loadFromCache('panel_settings_cache');
-            settings = cachedSettings && cachedSettings.length > 0 ? cachedSettings[0] : null;
-            requiredScore = settings?.bloqueo_score_minimo || 550;
+            const cachedSettingsRows = await loadFromCache('panel_settings_cache');
             
-            if (!settings) {
-                showError('⚠️ No hay configuración en cache. Conecta a internet y recarga los datos primero.');
-                return;
+            // Convertir array de settings a objeto {key: value}
+            const settingsObj = {};
+            if (cachedSettingsRows && Array.isArray(cachedSettingsRows)) {
+                cachedSettingsRows.forEach(row => {
+                    try {
+                        settingsObj[row.key] = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+                    } catch {
+                        settingsObj[row.key] = row.value;
+                    }
+                });
             }
             
-            console.log(`📂 Préstamo cargado del cache - Saldo: $${saldoDescontar}, Score: ${clientScore}`);
+            requiredScore = Number(settingsObj.bloqueo_score_minimo) || 550;
+            settings = settingsObj; // Usar el objeto convertido
+            
+            if (!cachedSettingsRows || cachedSettingsRows.length === 0) {
+                console.warn('⚠️ No hay configuración en cache, usando valores por defecto');
+            }
+            
+            console.log(`📂 Préstamo cargado del cache - Saldo: $${saldoDescontar}, Score: ${clientScore}, Required: ${requiredScore}`);
         }
         
         // 🚫 VALIDACIÓN BLOQUEADO - Bloquear si score < requerido
@@ -184,10 +196,11 @@ async function showCollectCreditForm(loanId) {
             return;
         }
         
-        const minMonto = Number(settings?.valor_minimo_prestamo || 50000);
-        const maxMonto = Number(settings?.valor_maximo_prestamo || 5000000);
-        const minCuota = Number(settings?.cuota_minima || 10000);
-        const interesBase = Number(settings?.interes_base || 20) / 100;
+        // Convertir settings (puede ser objeto ya o necesita conversión)
+        const minMonto = Number(settings?.valor_minimo_prestamo || settings?.value?.valor_minimo_prestamo || 50000);
+        const maxMonto = Number(settings?.valor_maximo_prestamo || settings?.value?.valor_maximo_prestamo || 5000000);
+        const minCuota = Number(settings?.cuota_minima || settings?.value?.cuota_minima || 10000);
+        const interesBase = (Number(settings?.interes_base || settings?.value?.interes_base || 20)) / 100;
         
         // Prefill with same values as current loan
         let montoNuevo = Number(loan.monto_prestado);
